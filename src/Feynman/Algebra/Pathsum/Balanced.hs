@@ -588,6 +588,11 @@ hSpider a n m = Pathsum 0 n m m pp ovals where
   ovals = [ofVar (PVar j) | j <- [0..m-1]]
   pp    = distribute a $ foldr (*) 1 $ [ofVar (IVar i) | i <- [0..n-1]] ++ ovals
 
+-- | Triangle matrix {1,1},{1,0}
+triangle :: (Eq g, Abelian g, Dyadic g) => Pathsum g
+triangle = Pathsum 2 1 1 2 pp [ofVar (PVar 1)] where
+  pp = distribute 1 $ ofVar (IVar 0) * ofVar (PVar 0) * ofVar (PVar 1)
+
 {----------------------------
  Channels
  ----------------------------}
@@ -959,11 +964,9 @@ matchSubproduct :: (Eq g, Periodic g) => Pathsum g -> [Var]
 matchSubproduct sop = msum . (map go) $ internalPaths sop
   where go v            = checkQuotient (quotVar v $ phasePoly sop)
         checkQuotient f =
-          let factors = vars . fst . factorizeTrivial . dropConstant $ f
-              pfact   = Set.intersection factors (Set.fromList $ internalPaths sop)
-          in
-            case getConstant f == 1 && pfact /= Set.empty of
-              True  -> return (head $ Set.toList pfact)
+          let factors = Set.filter isP . vars . fst . factorizeTrivial . dropConstant $ f in
+            case getConstant f == 1 && factors /= Set.empty of
+              True  -> return (head $ Set.toList factors)
               False -> mzero
 
 -- | Instances of the \(\omega\) rule
@@ -973,6 +976,19 @@ matchOmega sop = do
   p <- maybeToList . toBooleanPoly . addFactor v $ phasePoly sop
   return (v, p)
   where addFactor v p = constant (fromDyadic $ dyadic 3 1) + quotVar v p
+
+-- | Instances of the control rule
+matchCtrl :: (Eq g, Periodic g, Dyadic g) => Pathsum g -> [(SBool Var)]
+matchCtrl sop = do
+  v <- internalPaths sop
+  let pp = quotVar v $ phasePoly sop
+  q <- checkCenter pp
+  p <- maybeToList . toBooleanPoly . collectBy (\(a,_) -> order a == 2) $ pp
+  return $ p*q
+  where checkCenter poly = case toTermList $ collectBy (\(a,_) -> order a /= 2) poly of
+          [(a,mempty), (b,m)] | a == (-b) -> return $ ofMonomial m
+          [(b,m)]                         -> return $ 1 + ofMonomial m
+          _                               -> []
 
 -- | Instances of the var rule
 matchVar :: Eq g => Pathsum g -> [(Var, SBool Var)]
@@ -1036,6 +1052,10 @@ pattern Zero v <- (filter ((== 1) . snd) . matchHH -> (v, p):_)
 -- | Pattern synonym for Omega instances
 pattern Omega :: (Eq g, Periodic g, Dyadic g) => Var -> SBool Var -> Pathsum g
 pattern Omega v p <- (matchOmega -> (v, p):_)
+
+-- | Pattern synonym for ctrl instances
+pattern Ctrl :: (Eq g, Periodic g, Dyadic g) => SBool Var -> Pathsum g
+pattern Ctrl p <- (matchCtrl -> p:_)
 
 -- | Pattern synonym for var instances
 pattern Var :: Eq g => Var -> SBool Var -> Pathsum g
@@ -1114,6 +1134,16 @@ applyOmega (PVar i) p (Pathsum a b c d e f) = Pathsum (a-1) b c (d-1) e' f'
 applyZero :: (Eq g, Abelian g) => Var -> Pathsum g -> Pathsum g
 applyZero v (Pathsum a b c d e f) = Pathsum 0 b c 1 (lift $ ofVar (PVar 0)) [0 | x <- f]
 
+-- | Apply a Ctrl rule. Does not check if the instance is valid
+applyCtrl :: (Eq g, Abelian g) => SBool Var -> Pathsum g -> Pathsum g
+applyCtrl p (Pathsum a b c d e f) = Pathsum a b c d e' f' where
+  m  = case p == 0 of
+    True  -> mempty
+    False -> snd . head . reverse . toTermList $ p
+  p' = p + ofMonomial m
+  e' = substMonomial (Set.toList $ vars m) p' e
+  f' = map (substMonomial (Set.toList $ vars m) p') f
+
 -- | Apply a var rule. Does not check if the instance is valid
 applyVar :: (Eq g, Abelian g) => Var -> SBool Var -> Pathsum g -> Pathsum g
 applyVar v p (Pathsum a b c d e f) = Pathsum a b c d (subst v p e) (map (subst v p) f)
@@ -1135,6 +1165,12 @@ rewriteOmega :: (Eq g, Periodic g, Dyadic g) => Pathsum g -> Pathsum g
 rewriteOmega sop = case sop of
   Omega v p -> applyOmega v p sop
   _         -> sop
+
+-- | Finds and applies the first ctrl instance
+rewriteCtrl :: (Eq g, Periodic g, Dyadic g) => Pathsum g -> Pathsum g
+rewriteCtrl sop = case sop of
+  Ctrl p -> applyCtrl p sop
+  _      -> sop
 
 -- | Finds and applies the first var instance
 rewriteVar :: (Eq g, Abelian g) => Pathsum g -> Pathsum g
@@ -1572,3 +1608,124 @@ rus = fresh <> fresh <> identity 1 .>
       identity 2 <> sgate .>
       ccxgate .>
       hgate <> hgate <> zgate
+
+
+-- ZX calculus rules
+pi1 :: DMod2
+pi1 = fromDyadic $ dyadic 1 0
+
+pi2 :: DMod2
+pi2 = fromDyadic $ dyadic 1 1
+
+pi4 :: DMod2
+pi4 = fromDyadic $ dyadic 1 2
+
+rule_s2_left, rule_s2_right :: Pathsum DMod2
+rule_s2_left  = zSpider 0 1 1
+rule_s2_right = identity 1
+
+rule_s3_left, rule_s3_right :: Pathsum DMod2
+rule_s3_left  = epsilon
+rule_s3_right = zSpider 0 2 0
+
+rule_e_left, rule_e_right :: Pathsum DMod2
+rule_e_left  = zSpider pi4 0 1 .> xSpider (-pi4) 1 0
+rule_e_right = identity 0
+
+rule_b1_left, rule_b1_right :: Pathsum DMod2
+rule_b1_left  = (xSpider 0 0 1 .> zSpider 0 1 0) <> (xSpider 0 0 1 .> zSpider 0 1 2)
+rule_b1_right = xSpider 0 0 1 <> xSpider 0 0 1
+
+rule_b2_left, rule_b2_right :: Pathsum DMod2
+rule_b2_left  = (xSpider 0 0 1 .> zSpider 0 1 0) <> ba where
+  ba = zSpider 0 1 2 <> zSpider 0 1 2 .>
+       identity 1 <> swapgate <> identity 1 .>
+       xSpider 0 2 1 <> xSpider 0 2 1
+rule_b2_right = xSpider 0 2 1 .> zSpider 0 1 2
+
+rule_k_left, rule_k_right :: Pathsum DMod2
+rule_k_left  = (xSpider 0 0 1 .> zSpider 0 1 0) <> (xSpider pi4 1 1 .> zSpider pi1 1 1)
+rule_k_right = (xSpider pi4 0 1 .> zSpider pi1 1 0) <> (zSpider pi1 1 1 .> xSpider (-pi4) 1 1)
+
+rule_sup_left, rule_sup_right :: Pathsum DMod2
+rule_sup_left  = zSpider pi4 0 1 <> zSpider (pi4 + pi1) 0 1 .> xSpider 0 2 1
+rule_sup_right = zSpider (pi2 + pi1) 0 2 .> xSpider 0 2 1
+
+rule_eu_left, rule_eu_right :: Pathsum DMod2
+rule_eu_left  = hgate
+rule_eu_right = zSpider pi2 1 1 <> zSpider (-pi2) 0 1 .> xSpider 0 2 1 .> zSpider pi2 1 1
+
+rule_c_left, rule_c_right :: Pathsum DMod2
+rule_c_left  = xSpider (-pi4) 1 2 <> identity 2 .>
+               identity 1 <> zSpider 0 2 1 <> identity 1 .>
+               zSpider pi2 1 2 <> identity 2 .>
+               identity 1 <> xSpider pi4 2 1 <> identity 1 .>
+               identity 1 <> zSpider (pi4 + pi2) 2 1 .>
+               xSpider 0 1 2 <> xSpider pi1 1 2 .>
+               zSpider pi2 1 0 <> zSpider 0 2 1 <> zSpider (pi4 + pi2) 1 0
+rule_c_right = swapgate <> identity 1 .>
+               identity 1 <> swapgate .>
+               swapgate <> identity 1 .>
+               xSpider pi4 1 2 <> identity 2 .>
+               identity 1 <> zSpider 0 2 1 <> identity 1 .>
+               zSpider pi2 1 2 <> identity 2 .>
+               identity 1 <> xSpider (-pi4) 2 1 <> identity 1 .>
+               identity 1 <> zSpider (pi4 + pi2) 2 1 .>
+               xSpider 0 1 2 <> xSpider pi1 1 2 .>
+               zSpider pi2 1 0 <> zSpider 0 2 1 <> zSpider (pi4 + pi2) 1 0
+
+rule_bw_left, rule_bw_right :: Pathsum DMod2
+rule_bw_left  = zSpider 0 1 2 <> zSpider pi4 0 1 .>
+                xSpider 0 1 2 <> xSpider 0 2 1 .>
+                zSpider pi4 1 0 <> zSpider (-pi2) 1 1 <> zSpider pi4 1 0 .>
+                xSpider 0 1 2 .>
+                zSpider pi4 1 0 <> zSpider 0 1 2 <> zSpider pi4 0 1 .>
+                identity 1 <> xSpider 0 2 1 .>
+                identity 1 <> zSpider pi4 1 0
+rule_bw_right = zSpider 0 1 2 <> zSpider pi4 0 1 .>
+                xSpider pi1 1 2 <> xSpider pi1 2 1 .>
+                zSpider pi4 1 0 <> zSpider pi4 1 1 <> zSpider pi4 1 0 .>
+                xSpider pi2 1 1
+
+s2_proof = rule_s2_left ~~ rule_s2_right
+s3_proof = rule_s3_left ~~ rule_s3_right
+e_proof = rule_e_left |>
+          grind |>
+          applyVar (PVar 0) (ofVar (PVar 0) + ofVar (PVar 1)) |>
+          (~~ rule_e_right)
+b1_proof = rule_b1_left ~~ rule_b1_right
+b2_proof = rule_b2_left ~~ rule_b2_right
+k_proof = rule_k_left |>
+          grind |>
+          applyVar (PVar 0) (ofVar (PVar 0) + 1) |>
+          (~~ rule_k_right)
+sup_proof = rule_sup_left |>
+            grind |>
+            applyVar (PVar 1) (ofVar (PVar 1) + 1) |>
+            (~~ rule_sup_right)
+eu_proof = rule_eu_left ~~ rule_eu_right
+
+c_proof = left ~~ right where
+  left  = rule_c_left |>
+          grind |>
+          applyVar (PVar 1) (ofVar (PVar 1) + ofVar (IVar 2) + 1) |>
+          applyVar (PVar 0) (ofVar (PVar 0) + 1) |>
+          rewriteCtrl
+  right = rule_c_right |>
+          grind |>
+          applyVar (PVar 1) (ofVar (PVar 1) + ofVar (IVar 0) + 1) |>
+          rewriteCtrl
+
+bw_proof = left_is_itriangle ~~ right_is_itriangle
+left_is_itriangle  = rule_bw_left |>
+                     grind |>
+                     applyVar (PVar 2) (ofVar (PVar 2) + ofVar (PVar 3)) |>
+                     grind |>
+                     applyVar (PVar 1) (ofVar (PVar 1) + ofVar (PVar 2) + 1) |>
+                     grind |>
+                     applyVar (PVar 0) (ofVar (PVar 0) + ofVar (PVar 1) + 1) |>
+                     grind
+right_is_itriangle = rule_bw_right |>
+                     grind |>
+                     applyVar (PVar 0) (ofVar (PVar 0) + ofVar (PVar 1) + 1) |>
+                     grind
