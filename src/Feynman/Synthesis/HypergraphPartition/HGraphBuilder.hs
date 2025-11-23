@@ -232,6 +232,8 @@ getNumCuts circ = do
       partitionFP  = tempDir </> partitionFN
       k            = Cfg.numParts
       kahypar      = Cfg.kahyparPath
+  
+  putStrLn $ "# Partition result"
 
   -- Build and write hypergraph
   let (nQuibits, hyp) = buildHypergraph $ packCircuit circ
@@ -241,7 +243,7 @@ getNumCuts circ = do
     unless existsInitial $
       error $ "Expected hypergraph file not found at: " ++ filePath
     renameFile filePath hypergraphFP
-  putStrLn $ "Hypergraph written to: " ++ hypergraphFP
+  putStrLn $ "# Hypergraph written to: " ++ hypergraphFP
 
   -- Ensure .hgr exists
   exists <- doesFileExist hypergraphFP
@@ -271,11 +273,6 @@ getNumCuts circ = do
       hPutStrLn stderr $ "KaHyPar failed.\n--- stdout ---\n" ++ out ++ "\n--- stderr ---\n" ++ err
       error "KaHyPar exited with an error."
 
-  -- Parse "Hyperedge Cut : <N>"
-  case parseHyperedgeCut allOut of
-    Just cut -> putStrLn $ "Hyperedge Cut: " ++ show cut
-    Nothing  -> hPutStrLn stderr "Warning: could not parse Hyperedge Cut from KaHyPar output."
-
   -- === continue: find latest partition file and rename ===
   candFiles <- listDirectory tempDir
   let isPart f = ("hypergraph.hgr.part" `isPrefixOf` f) || (".KaHyPar" `isInfixOf` f)
@@ -287,7 +284,12 @@ getNumCuts circ = do
   existing <- doesFileExist partitionFP
   when existing $ removeFile partitionFP
   renameFile (tempDir </> latest) partitionFP
-  putStrLn $ "Partition file written to: " ++ partitionFP
+  putStrLn $ "# Partition file written to: " ++ partitionFP
+
+   -- Parse "Hyperedge Cut : <N>"
+  case parseHyperedgeCut allOut of
+    Just cut -> putStrLn $ "# Hyperedge cut (ebits): " ++ show cut ++ "\n"
+    Nothing  -> hPutStrLn stderr "Warning: could not parse Hyperedge Cut from KaHyPar output."
 
   return circ
 
