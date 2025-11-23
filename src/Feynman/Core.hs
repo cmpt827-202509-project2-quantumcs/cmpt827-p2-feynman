@@ -408,6 +408,9 @@ isCZ :: Primitive -> Bool
 isCZ (CZ _ _) = True
 isCZ _        = False
 
+isCNOT :: Primitive -> Bool
+isCNOT (CNOT _ _) = True
+isCNOT _ = False
 
 -- Test
 

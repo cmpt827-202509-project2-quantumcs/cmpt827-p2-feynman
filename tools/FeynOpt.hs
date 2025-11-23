@@ -13,7 +13,7 @@ import Feynman.Core (Primitive,
                      expandCZ,
                      idsW)
 
-import  Feynman.Synthesis.HypergraphPartition.HGraphBuilder (getNumCuts, getNumCutsMT)
+import  Feynman.Synthesis.HypergraphPartition.HGraphBuilder (getNumCuts)
 
 import qualified Feynman.Frontend.DotQC as DotQC
 

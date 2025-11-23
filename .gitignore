@@ -14,7 +14,9 @@ dist/
 .cabal-sandbox/
 tmp/
 /src/Feynman/kahypar/
-/src/Feynman/mt-kahypar
+
+# hypergraph files
+*.hgr
 
 # misc
 TAGS
