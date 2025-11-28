@@ -43,6 +43,7 @@ library
                        Feynman.Synthesis.Reversible,
                        Feynman.Synthesis.Reversible.Parallel,
                        Feynman.Synthesis.Reversible.Gray,
+                       Feynman.Synthesis.Reversible.GrAStar,
                        Feynman.Synthesis.Pathsum.Clifford,
                        Feynman.Synthesis.Pathsum.Unitary,
 

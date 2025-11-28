@@ -67,6 +67,7 @@ data Pass = Triv
           | Paulifold Int
           | Statefold Int
           | CNOTMin
+          | CNOTminGrAstar
           | TPar
           | Cliff
           | CZ
@@ -103,21 +104,22 @@ decompileDotQC qc = qc { DotQC.decls = map go $ DotQC.decls qc }
 
 dotQCPass :: Pass -> (DotQC.DotQC -> DotQC.DotQC)
 dotQCPass pass = case pass of
-  Triv        -> id
-  Inline      -> DotQC.inlineDotQC
-  Unroll      -> id
-  MCT         -> DotQC.expandToffolis
-  CT          -> DotQC.expandAll
-  Simplify    -> DotQC.simplifyDotQC
-  Phasefold   -> optimizeDotQC phaseFold
-  Paulifold d -> optimizeDotQC (pauliFold d)
-  Statefold d -> optimizeDotQC (stateFold d)
-  CNOTMin     -> optimizeDotQC minCNOT
-  TPar        -> optimizeDotQC tpar
-  Cliff       -> optimizeDotQC (\_ _ -> simplifyCliffords)
-  CZ          -> optimizeDotQC (\_ _ -> expandCNOT)
-  CX          -> optimizeDotQC (\_ _ -> expandCZ)
-  Decompile   -> decompileDotQC
+  Triv               -> id
+  Inline             -> DotQC.inlineDotQC
+  Unroll             -> id
+  MCT                -> DotQC.expandToffolis
+  CT                 -> DotQC.expandAll
+  Simplify           -> DotQC.simplifyDotQC
+  Phasefold          -> optimizeDotQC phaseFold
+  Paulifold d        -> optimizeDotQC (pauliFold d)
+  Statefold d        -> optimizeDotQC (stateFold d)
+  CNOTMin            -> optimizeDotQC minCNOT
+  CNOTminGrAstar     -> optimizeDotQC minCNOTGrAstar
+  TPar               -> optimizeDotQC tpar
+  Cliff              -> optimizeDotQC (\_ _ -> simplifyCliffords)
+  CZ                 -> optimizeDotQC (\_ _ -> expandCNOT)
+  CX                 -> optimizeDotQC (\_ _ -> expandCZ)
+  Decompile          -> decompileDotQC
 
 equivalenceCheckDotQC :: DotQC.DotQC -> DotQC.DotQC -> Either String DotQC.DotQC
 equivalenceCheckDotQC qc qc' =
@@ -180,6 +182,7 @@ qasmPass pureCircuit pass = case pass of
   Statefold d -> QASM2.applyOpt (stateFold d) pureCircuit
   Paulifold d -> QASM2.applyOpt (pauliFold d) pureCircuit
   CNOTMin     -> QASM2.applyOpt minCNOT pureCircuit
+  CNOTminGrAstar -> QASM2.applyOpt minCNOTGrAstar pureCircuit
   TPar        -> QASM2.applyOpt tpar pureCircuit
   Cliff       -> QASM2.applyOpt (\_ _ -> simplifyCliffords) pureCircuit
   CZ          -> QASM2.applyOpt (\_ _ -> expandCNOT) pureCircuit
@@ -226,6 +229,7 @@ qasm3Pass pureCircuit pass = case pass of
   Paulifold 1 -> QASM3Utils.applyWStmtOpt phaseAnalysispp
   Paulifold d -> QASM3Utils.applyWStmtOpt (stateAnalysispp d)
   CNOTMin     -> id
+  CNOTminGrAstar -> id
   TPar        -> id
   Cliff       -> id
   CZ          -> id
@@ -349,6 +353,7 @@ parseArgs doneSwitches options (x:xs) = case x of
   "-statefold"   -> parseArgs doneSwitches options {passes = (Statefold $ read (head xs)):passes options} (tail xs)
   "-paulifold"   -> parseArgs doneSwitches options {passes = (Paulifold $ read (head xs)):passes options} (tail xs)
   "-cnotmin"     -> parseArgs doneSwitches options {passes = CNOTMin:passes options} xs
+  "-cnotminGrAstar"     -> parseArgs doneSwitches options {passes = CNOTminGrAstar:passes options} xs
   "-tpar"        -> parseArgs doneSwitches options {passes = TPar:passes options} xs
   "-clifford"    -> parseArgs doneSwitches options {passes = Cliff:passes options} xs
   "-cxcz"        -> parseArgs doneSwitches options {passes = CZ:passes options} xs

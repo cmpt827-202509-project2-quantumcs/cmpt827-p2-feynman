@@ -8,6 +8,7 @@ import Feynman.Synthesis.Phase
 import Feynman.Synthesis.Reversible
 import Feynman.Synthesis.Reversible.Parallel
 import Feynman.Synthesis.Reversible.Gray
+import Feynman.Synthesis.Reversible.GrAStar
 import Feynman.Optimization.Swaps
 
 import Data.List hiding (transpose)
@@ -218,6 +219,9 @@ tpar i o = pushSwaps . gtpar tparMaster i o
 
 -- minCNOT: the CNOT minimization algorithm from [AAM17]
 minCNOT = gtpar cnotMinGrayPointed
+
+-- minCNOTGrAstar: the CNOT minimization algirthm with A*
+minCNOTGrAstar = gtpar cnotMinGrAstarPointed
 
 {- Open synthesis -}
 applyGateOpen :: AffineOpenSynthesizer -> [Primitive] -> Primitive -> Analysis [Primitive]
