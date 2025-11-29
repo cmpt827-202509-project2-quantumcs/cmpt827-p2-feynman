@@ -1,10 +1,12 @@
-{-# LANGUAGE TupleSections, BangPatterns #-}
+{-# LANGUAGE BangPatterns, ImplicitParams, TupleSections #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant bracket" #-}
 module Main (main) where
 
+import Feynman.FeatureFlags
 import Feynman.Core (Primitive,
                      ID,
+                     HasFeynmanControl,
                      simplifyPrimitive',
                      expandCNOT,
                      expandCNOT',
@@ -45,6 +47,8 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 
+import Debug.Trace (trace)
+
 import Benchmarks (runBenchmarks,
                    benchmarksSmall,
                    benchmarksMedium,
@@ -78,7 +82,8 @@ data Options = Options {
   passes :: [Pass],
   verify :: Bool,
   pureCircuit :: Bool,
-  useQASM3 :: Bool }
+  useQASM3 :: Bool,
+  control :: FeatureFlags }
 
 {- DotQC -}
 
@@ -91,7 +96,7 @@ optimizeDotQC f qc = qc { DotQC.decls = map go $ DotQC.decls qc }
           in
             decl { DotQC.body = wrap (f circuitQubits circuitInputs) $ DotQC.body decl }
 
-decompileDotQC :: DotQC.DotQC -> DotQC.DotQC
+decompileDotQC :: (HasFeynmanControl) => DotQC.DotQC -> DotQC.DotQC
 decompileDotQC qc = qc { DotQC.decls = map go $ DotQC.decls qc }
   where go decl =
           let circuitQubits  = DotQC.qubits qc ++ DotQC.params decl
@@ -102,7 +107,7 @@ decompileDotQC qc = qc { DotQC.decls = map go $ DotQC.decls qc }
           in
             decl { DotQC.body = resynthesize $ DotQC.body decl }
 
-dotQCPass :: Pass -> (DotQC.DotQC -> DotQC.DotQC)
+dotQCPass :: (HasFeynmanControl) => Pass -> (DotQC.DotQC -> DotQC.DotQC)
 dotQCPass pass = case pass of
   Triv               -> id
   Inline             -> DotQC.inlineDotQC
@@ -135,7 +140,7 @@ equivalenceCheckDotQC qc qc' =
       (_, Inconclusive sop) -> Left $ "Failed to verify: \n  " ++ show sop
       _                     -> Right qc'
 
-runDotQC :: [Pass] -> Bool -> String -> ByteString -> IO ()
+runDotQC :: (HasFeynmanControl) => [Pass] -> Bool -> String -> ByteString -> IO ()
 runDotQC passes verify fname src = do
   start <- getCPUTime
   end   <- parseAndPass `seq` getCPUTime
@@ -161,7 +166,7 @@ runDotQC passes verify fname src = do
           return (qc, qc')
 
 {- Deprecated transformations for benchmark suites -}
-benchPass :: [Pass] -> (DotQC.DotQC -> Either String DotQC.DotQC)
+benchPass :: (HasFeynmanControl) => [Pass] -> (DotQC.DotQC -> Either String DotQC.DotQC)
 benchPass passes = \qc -> Right $ foldr dotQCPass qc passes
 
 benchVerif :: Bool -> Maybe (DotQC.DotQC -> DotQC.DotQC -> Either String DotQC.DotQC)
@@ -172,22 +177,22 @@ benchVerif False = Nothing
 
 qasmPass :: Bool -> Pass -> (QASM2.QASM -> QASM2.QASM)
 qasmPass pureCircuit pass = case pass of
-  Triv        -> id
-  Inline      -> QASM2.inline
-  Unroll      -> id
-  MCT         -> QASM2.inline
-  CT          -> QASM2.inline
-  Simplify    -> id
-  Phasefold   -> QASM2.applyOpt phaseFold pureCircuit
-  Statefold d -> QASM2.applyOpt (stateFold d) pureCircuit
-  Paulifold d -> QASM2.applyOpt (pauliFold d) pureCircuit
-  CNOTMin     -> QASM2.applyOpt minCNOT pureCircuit
+  Triv           -> id
+  Inline         -> QASM2.inline
+  Unroll         -> id
+  MCT            -> QASM2.inline
+  CT             -> QASM2.inline
+  Simplify       -> id
+  Phasefold      -> QASM2.applyOpt phaseFold pureCircuit
+  Statefold d    -> QASM2.applyOpt (stateFold d) pureCircuit
+  Paulifold d    -> QASM2.applyOpt (pauliFold d) pureCircuit
+  CNOTMin        -> QASM2.applyOpt minCNOT pureCircuit
   CNOTminGrAstar -> QASM2.applyOpt minCNOTGrAstar pureCircuit
-  TPar        -> QASM2.applyOpt tpar pureCircuit
-  Cliff       -> QASM2.applyOpt (\_ _ -> simplifyCliffords) pureCircuit
-  CZ          -> QASM2.applyOpt (\_ _ -> expandCNOT) pureCircuit
-  CX          -> QASM2.applyOpt (\_ _ -> expandCZ) pureCircuit
-  Decompile   -> id
+  TPar           -> QASM2.applyOpt tpar pureCircuit
+  Cliff          -> QASM2.applyOpt (\_ _ -> simplifyCliffords) pureCircuit
+  CZ             -> QASM2.applyOpt (\_ _ -> expandCNOT) pureCircuit
+  CX             -> QASM2.applyOpt (\_ _ -> expandCZ) pureCircuit
+  Decompile      -> id
 
 runQASM :: [Pass] -> Bool -> Bool -> String -> String -> IO ()
 runQASM passes verify pureCircuit fname src = do
@@ -217,24 +222,24 @@ showCounts = map f . Map.toList where
   f (gate, count) = gate ++ ": " ++ show count
 
 qasm3Pass pureCircuit pass = case pass of
-  Triv        -> id
-  Inline      -> QASM3Utils.inlineGateCalls
-  Unroll      -> QASM3Utils.unrollLoops
-  MCT         -> id
-  CT          -> id
-  Simplify    -> id
-  Phasefold   -> QASM3Utils.applyWStmtOpt phaseAnalysispp
-  Statefold 1 -> QASM3Utils.applyWStmtOpt phaseAnalysispp
-  Statefold d -> QASM3Utils.applyWStmtOpt (stateAnalysispp d)
-  Paulifold 1 -> QASM3Utils.applyWStmtOpt phaseAnalysispp
-  Paulifold d -> QASM3Utils.applyWStmtOpt (stateAnalysispp d)
-  CNOTMin     -> id
+  Triv           -> id
+  Inline         -> QASM3Utils.inlineGateCalls
+  Unroll         -> QASM3Utils.unrollLoops
+  MCT            -> id
+  CT             -> id
+  Simplify       -> id
+  Phasefold      -> QASM3Utils.applyWStmtOpt phaseAnalysispp
+  Statefold 1    -> QASM3Utils.applyWStmtOpt phaseAnalysispp
+  Statefold d    -> QASM3Utils.applyWStmtOpt (stateAnalysispp d)
+  Paulifold 1    -> QASM3Utils.applyWStmtOpt phaseAnalysispp
+  Paulifold d    -> QASM3Utils.applyWStmtOpt (stateAnalysispp d)
+  CNOTMin        -> id
   CNOTminGrAstar -> id
-  TPar        -> id
-  Cliff       -> id
-  CZ          -> id
-  CX          -> id
-  Decompile   -> id
+  TPar           -> id
+  Cliff          -> id
+  CZ             -> id
+  CX             -> id
+  Decompile      -> id
 
 runQASM3 :: [Pass] -> Bool -> Bool -> String -> String -> IO ()
 runQASM3 passes verify pureCircuit fname src = do
@@ -335,7 +340,8 @@ defaultOptions = Options {
   passes = [],
   verify = False,
   pureCircuit = False,
-  useQASM3 = False }
+  useQASM3 = False,
+  control = defaultFeatures }
 
 
 parseArgs :: Bool -> Options -> [String] -> IO ()
@@ -343,6 +349,10 @@ parseArgs doneSwitches options []     = printHelp
 parseArgs doneSwitches options (x:xs) = case x of
   f | doneSwitches -> runFile f
   "-h"           -> printHelp
+  '-':'-':'f':'t':'r':'-':controlSwitchName
+                 -> case featureSwitchFunction controlSwitchName of
+                      Just f -> parseArgs doneSwitches options {control=(f (control options))} xs
+                      Nothing -> putStrLn ("Ignoring unrecognized feature switch " ++ x)
   "-purecircuit" -> parseArgs doneSwitches options {pureCircuit = True} xs
   "-inline"      -> parseArgs doneSwitches options {passes = Inline:passes options} xs
   "-unroll"      -> parseArgs doneSwitches options {passes = Unroll:passes options} xs
@@ -366,15 +376,22 @@ parseArgs doneSwitches options (x:xs) = case x of
   "-qpf"         -> parseArgs doneSwitches options {passes = qpf ++ passes options} xs
   "-ppf"         -> parseArgs doneSwitches options {passes = ppf ++ passes options} xs
   "-verify"      -> parseArgs doneSwitches options {verify = True} xs
-  "-benchmark"   -> benchmarkFolder (head xs) >>= runBenchmarks (benchPass $ passes options) (benchVerif $ verify options)
+  "-benchmark"   -> benchmarkFolder (head xs) >>=
+                      let ?featureFlags=control options
+                       in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options)
   "-qasm3"       -> parseArgs doneSwitches options {useQASM3 = True} xs
   "-invgen"      -> generateInvariants (head xs)
   "--"           -> parseArgs True options xs
-  "Small"        -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksSmall
-  "Med"          -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksMedium
-  "All"          -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksAll
-  "POPL25"       -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25
-  "POPL25QASM"   -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25QASM
+  "Small"        -> let ?featureFlags=control options
+                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksSmall
+  "Med"          -> let ?featureFlags=control options
+                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksMedium
+  "All"          -> let ?featureFlags=control options
+                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksAll
+  "POPL25"       -> let ?featureFlags=control options
+                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25
+  "POPL25QASM"   -> let ?featureFlags=control options
+                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25QASM
   f | ((drop (length f - 3) f) == ".qc") || ((drop (length f - 5) f) == ".qasm") -> runFile f
   f | otherwise -> putStrLn ("Unrecognized option \"" ++ f ++ "\"") >> printHelp
   where o2  = [Simplify,Phasefold,Simplify,CT,Simplify,MCT]
@@ -383,7 +400,9 @@ parseArgs doneSwitches options (x:xs) = case x of
         apf = [Simplify,Paulifold 1,Simplify,Statefold 1,Statefold 1,Phasefold,Simplify,CT,Simplify,MCT]
         qpf = [Simplify,Paulifold 1,Simplify,Statefold 2,Statefold 2,Phasefold,Simplify,CT,Simplify,MCT]
         ppf = [Simplify,Paulifold 1,Simplify,Statefold 0,Statefold 0,Phasefold,Simplify,CT,Simplify,MCT]
-        runFile f | (drop (length f - 3) f) == ".qc"   = B.readFile f >>= runDotQC (passes options) (verify options) f
+        runFile f | (drop (length f - 3) f) == ".qc"   =
+          B.readFile f >>= (let ?featureFlags=control options
+                             in runDotQC (passes options) (verify options) f)
         runFile f | (drop (length f - 5) f) == ".qasm" =
           if useQASM3 options then readFile f >>= runQASM3 (passes options) (verify options) (pureCircuit options) f
                               else readFile f >>= runQASM (passes options) (verify options) (pureCircuit options) f

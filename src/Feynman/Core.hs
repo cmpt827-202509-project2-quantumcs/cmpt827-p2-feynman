@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ConstraintKinds, ImplicitParams, Rank2Types #-}
 module Feynman.Core where
 
 import Data.List
@@ -8,7 +8,11 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
 
+import Feynman.FeatureFlags (FeatureFlags)
 import Feynman.Algebra.Base
+
+
+type HasFeynmanControl = (?featureFlags :: FeatureFlags)
 
 
 type ID = String
@@ -365,11 +369,12 @@ instance Show Stmt where
   show (Repeat i stmt)           = "BEGIN^" ++ show i ++ "\n" ++ show stmt ++ "\n" ++ "END"
 
 instance Show Decl where
-  show decl = "BEGIN " ++ putName (name decl) ++ showLst (params decl) ++ "\n"
+  show decl = "BEGIN" ++ putName (name decl) ++ showLst (params decl) ++ "\n"
               ++ show (body decl) ++ "\n"
               ++ "END"
     where putName "main" = ""
-          putName s      = s
+          putName ""     = ""
+          putName s      = " " ++ s
 
 instance Show Circuit where
   show circ = intercalate "\n" (qubitline:inputline:body)
