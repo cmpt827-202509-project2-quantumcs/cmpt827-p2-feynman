@@ -50,22 +50,22 @@ addMay st phases = (\(a,b) -> (reverse a,b)) . snd . foldl' go (st,([],phases)) 
   go (st,(circ,may)) gate = (st,(gate:circ,may))
 
 -- Pointed
-cnotMinGrAstarPointed0 :: Synthesizer
-cnotMinGrAstarPointed0 input output [] may = (linearSynth input output, may)
+cnotMinGrAStarPointed0 :: Synthesizer
+cnotMinGrAStarPointed0 input output [] may = (linearSynth input output, may)
 cnotMinGrayPointed0 input output xs may = (linearSynth input output, may)
           
 {- Master method -}
 
 -- Fastest
-cnotMinGrAstar i o must may = cnotMinGrAstarPointed0 i o (filter (\(_, i) -> order i /= 1) must) may
+cnotMinGrAStar i o must may = cnotMinGrAStarPointed0 i o (filter (\(_, i) -> order i /= 1) must) may
 
 -- Eagerly applies phases
-cnotMinGrAstarEager = \i o mu ma -> cnotMinGrAstarPointed0 i o (mu ++ ma) []
+cnotMinGrAStarEager = \i o mu ma -> cnotMinGrAStarPointed0 i o (mu ++ ma) []
 
 -- Compares between configurations (doubles runtime but best performance)
-cnotMinGrAstarPointed input output xs may =
-  let result1 = cnotMinGrAstarPointed0 input output xs may
-      result2 = cnotMinGrAstarPointed0 input output (filter (\(_, i) -> order i /= 1) xs) may
+cnotMinGrAStarPointed input output xs may =
+  let result1 = cnotMinGrAStarPointed0 input output xs may
+      result2 = cnotMinGrAStarPointed0 input output (filter (\(_, i) -> order i /= 1) xs) may
       isct g = case g of
         CNOT _ _  -> True
         otherwise -> False

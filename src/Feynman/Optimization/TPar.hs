@@ -220,8 +220,8 @@ tpar i o = pushSwaps . gtpar tparMaster i o
 -- minCNOT: the CNOT minimization algorithm from [AAM17]
 minCNOT = gtpar cnotMinGrayPointed
 
--- minCNOTGrAstar: the CNOT minimization algirthm with A*
-minCNOTGrAstar = gtpar cnotMinGrAstarPointed
+-- minCNOTGrAStar: the CNOT minimization algirthm with A*
+minCNOTGrAStar = gtpar cnotMinGrAStarPointed
 
 {- Open synthesis -}
 applyGateOpen :: AffineOpenSynthesizer -> [Primitive] -> Primitive -> Analysis [Primitive]

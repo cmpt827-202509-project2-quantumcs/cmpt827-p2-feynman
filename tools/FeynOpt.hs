@@ -71,7 +71,7 @@ data Pass = Triv
           | Paulifold Int
           | Statefold Int
           | CNOTMin
-          | CNOTminGrAstar
+          | CNOTMinGrAStar
           | TPar
           | Cliff
           | CZ
@@ -119,7 +119,7 @@ dotQCPass pass = case pass of
   Paulifold d        -> optimizeDotQC (pauliFold d)
   Statefold d        -> optimizeDotQC (stateFold d)
   CNOTMin            -> optimizeDotQC minCNOT
-  CNOTminGrAstar     -> optimizeDotQC minCNOTGrAstar
+  CNOTMinGrAStar     -> optimizeDotQC minCNOTGrAStar
   TPar               -> optimizeDotQC tpar
   Cliff              -> optimizeDotQC (\_ _ -> simplifyCliffords)
   CZ                 -> optimizeDotQC (\_ _ -> expandCNOT)
@@ -187,7 +187,7 @@ qasmPass pureCircuit pass = case pass of
   Statefold d    -> QASM2.applyOpt (stateFold d) pureCircuit
   Paulifold d    -> QASM2.applyOpt (pauliFold d) pureCircuit
   CNOTMin        -> QASM2.applyOpt minCNOT pureCircuit
-  CNOTminGrAstar -> QASM2.applyOpt minCNOTGrAstar pureCircuit
+  CNOTMinGrAStar -> QASM2.applyOpt minCNOTGrAStar pureCircuit
   TPar           -> QASM2.applyOpt tpar pureCircuit
   Cliff          -> QASM2.applyOpt (\_ _ -> simplifyCliffords) pureCircuit
   CZ             -> QASM2.applyOpt (\_ _ -> expandCNOT) pureCircuit
@@ -234,7 +234,7 @@ qasm3Pass pureCircuit pass = case pass of
   Paulifold 1    -> QASM3Utils.applyWStmtOpt phaseAnalysispp
   Paulifold d    -> QASM3Utils.applyWStmtOpt (stateAnalysispp d)
   CNOTMin        -> id
-  CNOTminGrAstar -> id
+  CNOTMinGrAStar -> id
   TPar           -> id
   Cliff          -> id
   CZ             -> id
@@ -353,45 +353,45 @@ parseArgs doneSwitches options (x:xs) = case x of
                  -> case featureSwitchFunction controlSwitchName of
                       Just f -> parseArgs doneSwitches options {control=(f (control options))} xs
                       Nothing -> putStrLn ("Ignoring unrecognized feature switch " ++ x)
-  "-purecircuit" -> parseArgs doneSwitches options {pureCircuit = True} xs
-  "-inline"      -> parseArgs doneSwitches options {passes = Inline:passes options} xs
-  "-unroll"      -> parseArgs doneSwitches options {passes = Unroll:passes options} xs
-  "-mctExpand"   -> parseArgs doneSwitches options {passes = MCT:passes options} xs
-  "-toCliffordT" -> parseArgs doneSwitches options {passes = CT:passes options} xs
-  "-simplify"    -> parseArgs doneSwitches options {passes = Simplify:passes options} xs
-  "-phasefold"   -> parseArgs doneSwitches options {passes = Phasefold:passes options} xs
-  "-statefold"   -> parseArgs doneSwitches options {passes = (Statefold $ read (head xs)):passes options} (tail xs)
-  "-paulifold"   -> parseArgs doneSwitches options {passes = (Paulifold $ read (head xs)):passes options} (tail xs)
-  "-cnotmin"     -> parseArgs doneSwitches options {passes = CNOTMin:passes options} xs
-  "-cnotminGrAstar"     -> parseArgs doneSwitches options {passes = CNOTminGrAstar:passes options} xs
-  "-tpar"        -> parseArgs doneSwitches options {passes = TPar:passes options} xs
-  "-clifford"    -> parseArgs doneSwitches options {passes = Cliff:passes options} xs
-  "-cxcz"        -> parseArgs doneSwitches options {passes = CZ:passes options} xs
-  "-czcx"        -> parseArgs doneSwitches options {passes = CX:passes options} xs
-  "-decompile"   -> parseArgs doneSwitches options {passes = Decompile:passes options} xs
-  "-O2"          -> parseArgs doneSwitches options {passes = o2 ++ passes options} xs
-  "-O3"          -> parseArgs doneSwitches options {passes = o3 ++ passes options} xs
-  "-O4"          -> parseArgs doneSwitches options {passes = o4 ++ passes options} xs
-  "-apf"         -> parseArgs doneSwitches options {passes = apf ++ passes options} xs
-  "-qpf"         -> parseArgs doneSwitches options {passes = qpf ++ passes options} xs
-  "-ppf"         -> parseArgs doneSwitches options {passes = ppf ++ passes options} xs
-  "-verify"      -> parseArgs doneSwitches options {verify = True} xs
-  "-benchmark"   -> benchmarkFolder (head xs) >>=
-                      let ?featureFlags=control options
-                       in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options)
-  "-qasm3"       -> parseArgs doneSwitches options {useQASM3 = True} xs
-  "-invgen"      -> generateInvariants (head xs)
-  "--"           -> parseArgs True options xs
-  "Small"        -> let ?featureFlags=control options
-                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksSmall
-  "Med"          -> let ?featureFlags=control options
-                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksMedium
-  "All"          -> let ?featureFlags=control options
-                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksAll
-  "POPL25"       -> let ?featureFlags=control options
-                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25
-  "POPL25QASM"   -> let ?featureFlags=control options
-                     in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25QASM
+  "-purecircuit"    -> parseArgs doneSwitches options {pureCircuit = True} xs
+  "-inline"         -> parseArgs doneSwitches options {passes = Inline:passes options} xs
+  "-unroll"         -> parseArgs doneSwitches options {passes = Unroll:passes options} xs
+  "-mctExpand"      -> parseArgs doneSwitches options {passes = MCT:passes options} xs
+  "-toCliffordT"    -> parseArgs doneSwitches options {passes = CT:passes options} xs
+  "-simplify"       -> parseArgs doneSwitches options {passes = Simplify:passes options} xs
+  "-phasefold"      -> parseArgs doneSwitches options {passes = Phasefold:passes options} xs
+  "-statefold"      -> parseArgs doneSwitches options {passes = (Statefold $ read (head xs)):passes options} (tail xs)
+  "-paulifold"      -> parseArgs doneSwitches options {passes = (Paulifold $ read (head xs)):passes options} (tail xs)
+  "-cnotmin"        -> parseArgs doneSwitches options {passes = CNOTMin:passes options} xs
+  "-cnotminGrAStar" -> parseArgs doneSwitches options {passes = CNOTMinGrAStar:passes options} xs
+  "-tpar"           -> parseArgs doneSwitches options {passes = TPar:passes options} xs
+  "-clifford"       -> parseArgs doneSwitches options {passes = Cliff:passes options} xs
+  "-cxcz"           -> parseArgs doneSwitches options {passes = CZ:passes options} xs
+  "-czcx"           -> parseArgs doneSwitches options {passes = CX:passes options} xs
+  "-decompile"      -> parseArgs doneSwitches options {passes = Decompile:passes options} xs
+  "-O2"             -> parseArgs doneSwitches options {passes = o2 ++ passes options} xs
+  "-O3"             -> parseArgs doneSwitches options {passes = o3 ++ passes options} xs
+  "-O4"             -> parseArgs doneSwitches options {passes = o4 ++ passes options} xs
+  "-apf"            -> parseArgs doneSwitches options {passes = apf ++ passes options} xs
+  "-qpf"            -> parseArgs doneSwitches options {passes = qpf ++ passes options} xs
+  "-ppf"            -> parseArgs doneSwitches options {passes = ppf ++ passes options} xs
+  "-verify"         -> parseArgs doneSwitches options {verify = True} xs
+  "-benchmark"      -> benchmarkFolder (head xs) >>=
+                         let ?featureFlags=control options
+                          in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options)
+  "-qasm3"          -> parseArgs doneSwitches options {useQASM3 = True} xs
+  "-invgen"         -> generateInvariants (head xs)
+  "--"              -> parseArgs True options xs
+  "Small"           -> let ?featureFlags=control options
+                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksSmall
+  "Med"             -> let ?featureFlags=control options
+                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksMedium
+  "All"             -> let ?featureFlags=control options
+                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksAll
+  "POPL25"          -> let ?featureFlags=control options
+                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25
+  "POPL25QASM"      -> let ?featureFlags=control options
+                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25QASM
   f | ((drop (length f - 3) f) == ".qc") || ((drop (length f - 5) f) == ".qasm") -> runFile f
   f | otherwise -> putStrLn ("Unrecognized option \"" ++ f ++ "\"") >> printHelp
   where o2  = [Simplify,Phasefold,Simplify,CT,Simplify,MCT]
