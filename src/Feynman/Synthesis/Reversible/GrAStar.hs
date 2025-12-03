@@ -33,10 +33,7 @@ data Pt = Pt {
   vectors    :: [Phase]
 } deriving Show
 
-adjust :: Int -> Int -> [Pt] -> [Pt]
-adjust t p xs = map f xs
-  where f (Pt c t p vecs) = Pt c t p $ map g vecs
-        g (bv, i) = (if bv@.t then complementBit bv p else bv, i)
+
 
 -- Optionally adds "may" phases whenever possible
 addMay :: LinearTrans -> [Phase] -> [Primitive] -> ([Primitive], [Phase])
@@ -49,65 +46,21 @@ addMay st phases = (\(a,b) -> (reverse a,b)) . snd . foldl' go (st,([],phases)) 
           circ' = synthesizePhase t (snd phase) ++ (gate:circ)
   go (st,(circ,may)) gate = (st,(gate:circ,may))
 
--- Pointed
-cnotMinGrAStarPointed0 :: Synthesizer
-cnotMinGrAStarPointed0 input output [] may = (linearSynth input output, may)
-cnotMinGrayPointed0 input output xs may = (linearSynth input output, may)
-          
-{- Master method -}
-
--- Fastest
-cnotMinGrAStar i o must may = cnotMinGrAStarPointed0 i o (filter (\(_, i) -> order i /= 1) must) may
-
--- Eagerly applies phases
-cnotMinGrAStarEager = \i o mu ma -> cnotMinGrAStarPointed0 i o (mu ++ ma) []
-
--- Compares between configurations (doubles runtime but best performance)
-cnotMinGrAStarPointed input output xs may =
-  let result1 = cnotMinGrAStarPointed0 input output xs may
-      result2 = cnotMinGrAStarPointed0 input output (filter (\(_, i) -> order i /= 1) xs) may
-      isct g = case g of
-        CNOT _ _  -> True
-        otherwise -> False
-      countc = length . filter isct . fst
-  in
-    minimumBy (comparing countc) [result1, result2]
-
-
-{- Brute force synthesis -}
-
-maximalSkeleton :: [ID] -> LinearTrans -> [Primitive] -> Set F2Vec
-maximalSkeleton ids st gates = snd $ Data.List.foldl f (st, Set.fromList $ Map.elems st) gates
-  where f (st, vals) (CNOT c t) =
-          let tmp = (st!t) + (st!c) in
-            (Map.insert t tmp st, Set.insert tmp vals)
-        f (st, vals) _          = (st, vals)
-
-maximalASkeleton :: [ID] -> LinearTrans -> [Primitive] -> (LinearTrans, Set F2Vec)
-maximalASkeleton ids st gates = Data.List.foldl f (st, Set.fromList $ Map.elems st) gates
-  where f (st, vals) (CNOT c t) =
-          let tmp = (st!t) + (st!c) in
-            (Map.insert t tmp st, Set.insert tmp vals)
-        f (st, vals) _          = (st, vals)
-
-allCNOTs :: [ID] -> [[Primitive]]
-allCNOTs ids = concatMap f ids
-  where f id = [ [CNOT id id'] | id'<-ids, id /= id']
-
-allSkeletons :: [ID] -> [[Primitive]]
-allSkeletons ids = [[]] ++ allCNOTs ids ++ [x++y | y<-allSkeletons ids, x<-allCNOTs ids]
-
-check :: [ID] -> LinearTrans -> Set F2Vec -> [Primitive] -> Bool
-check ids st vals = Set.isSubsetOf vals . maximalSkeleton ids st
-
-bruteForceSkeleton :: [ID] -> Set F2Vec -> Maybe [Primitive]
-bruteForceSkeleton ids vals = find (Set.isSubsetOf vals . maximalSkeleton ids st) $ allSkeletons ids
-  where st = genInitSt ids
-
-bruteForceASkeleton :: [ID] -> Set F2Vec -> LinearTrans -> Maybe [Primitive]
-bruteForceASkeleton ids vals out = find (verify . maximalASkeleton ids st) $ allSkeletons ids
-  where st               = genInitSt ids
-        verify (st, set) = st == out && Set.isSubsetOf vals set
-
-genInitSt :: [ID] -> LinearTrans
-genInitSt ids = Map.fromList $ map (\(id, i) -> (id, bitI (length ids) i)) $ zip ids [0..]
+-- input: the functions currently computed on the qubits
+-- output: the functions we would like to end with, on the qubits
+-- must: the phase functions we must hit during synthesis
+-- may: some optional goal phases we can add, if it's convenient (Joe: when would this happen?)
+-- Returns a list of gates, and a list of successfully synthesized phase functions.
+cnotMinGrAStar :: LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
+cnotMinGrAStar input output must may = undefined
+-- Skeleton of A*:
+--   while there are still nodes in the queue:
+--     pop highest priority node
+--     expand:
+--       check if node is a goal:
+--         if so, we're done! quit with this node's path as the result
+--       compute node children and their cost heuristic h(n)'s
+--       insert node children (prioritized by f(n) = g(n) + h(n), lowest f is highest priority)
+--   otherwise, search failed! there's no solution.
+-- Note we can use linearSynth to get ourselves efficiently to some particular goal state -- this should always be the last step, to get to "output".
+-- 
