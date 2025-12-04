@@ -1,6 +1,7 @@
 module Feynman.Synthesis.Reversible.GrAStar where
 
 import Feynman.Core
+import Feynman.FeatureFlags
 import Feynman.Algebra.Base
 import Feynman.Algebra.Linear
 import Feynman.Synthesis.Phase
@@ -26,16 +27,14 @@ import Control.Monad.State.Strict
 import Control.Monad.Writer.Lazy
 
 import Data.Bits
-import Debug.Trace
 import Control.Exception (assert)
 
-{- Gray code synthesis -}
-data Pt = Pt {
-  candidates :: [Int],
-  target     :: Maybe Int,
-  pending    :: Maybe Int,
-  vectors    :: [Phase]
-} deriving Show
+
+traceA :: (HasFeatureFlags) => String -> a -> a
+traceA = traceIf (useFeature fcfTrace_AStar)
+
+traceValA :: (HasFeatureFlags) => (a -> String) -> a -> a
+traceValA = traceValIf (useFeature fcfTrace_AStar)
 
 
 -- Optionally adds "may" phases whenever possible
@@ -48,6 +47,7 @@ addMay st phases = (\(a,b) -> (reverse a,b)) . snd . foldl' go (st,([],phases)) 
         ([phase], may') -> (Map.insert t tmp st, (circ', may')) where
           circ' = synthesizePhase t (snd phase) ++ (gate:circ)
   go (st,(circ,may)) gate = (st,(gate:circ,may))
+
 
 -- Generally in this algorithm, we care about storing 3 elements for each node:
 -- 1. The set of phases (each parity an F2Vec) that remain to be computed
@@ -63,30 +63,37 @@ addMay st phases = (\(a,b) -> (reverse a,b)) . snd . foldl' go (st,([],phases)) 
 
 type AStarQ = HashPSQ (Set F2Vec, Set F2Vec, Set F2Vec) Int (F2Mat, [Primitive])
 
+
 -- Trivial heuristic forces a breadth-first search
 trivialHeuristic _ = 0 :: Int
 
 -- Assuming all phases are distinct, we will need at least one CNOT per
-phaseCountHeuristic :: ([Phase], LinearTrans) -> Int
-phaseCountHeuristic (mustRemain, _) = length mustRemain
+phaseCountHeuristic :: (Set F2Vec, Set F2Vec, Set F2Vec) -> Int
+phaseCountHeuristic (mustRemain, _, _) = Set.size mustRemain
+
 
 -- input: the functions currently computed on the qubits
 -- output: the functions we would like to end with, on the qubits
 -- must: the phase functions we must hit during synthesis
 -- may: some optional goal phases we can add, if it's convenient
 -- Returns a list of gates, and a list of successfully synthesized phase functions.
-cnotMinGrAStar :: LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
+cnotMinGrAStar :: (HasFeatureFlags) => LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
 cnotMinGrAStar input output must may =
   addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
   where
-    rootKey = (Set.fromList (map fst must), Set.fromList (vals inputMat), Set.fromList (vals inputMat))
+    inputBasis = Set.fromList (vals inputMat)
+    rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
     (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
 
     n = Map.size input
     (qids, inVecs) = unzip (Map.toList input)
     inputMat = fromList inVecs
 
-    heuristic = trivialHeuristic
+    heuristic = case True of
+                  _ | useFeature fcfFeature_GrAStar_Heuristic_Trivial -> trivialHeuristic
+                  _ | useFeature fcfFeature_GrAStar_Heuristic_PhaseCount -> phaseCountHeuristic
+                  _ -> error "No default heuristic at the moment"
+
     -- Skeleton of A*:
     --   while there are still nodes in the queue:
     --     pop highest priority node
@@ -98,12 +105,13 @@ cnotMinGrAStar input output must may =
     --   otherwise, search failed! there's no solution.
 
     -- The "key" also contains the full set of generated parities for the circuit now
-    expandNext :: AStarQ -> (LinearTrans, [Primitive])
+    expandNext :: (HasFeatureFlags) => AStarQ -> (LinearTrans, [Primitive])
     expandNext psq =
-      generateChildren (HashPSQ.findMin psq)
+      traceA ("Expanding " ++ formatNode (HashPSQ.findMin psq)) $
+        generateChildren (HashPSQ.findMin psq)
       where
         generateChildren Nothing = undefined -- shouldn't happen
-        generateChildren (Just ((mustRemain, basis, generated), fnCost, (curMat, circRev)))
+        generateChildren (Just ((mustRemain, basis, generated), fCost, (curMat, circRev)))
           | null mustRemain = (curTransform, reverse circRev) -- no musts left: goal achieved!
           | otherwise       = expandNext (foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes)
           -- Try adding every different CNOT to the PSQ
@@ -129,4 +137,7 @@ cnotMinGrAStar input output must may =
                 newGate = CNOT (qids !! i) (qids !! j)
 
                 childMat = addRow i j curMat
+        formatNode Nothing = "<SKIP!>"
+        formatNode (Just ((mustRemain, basis, generated), fCost, (curMat, circRev))) =
+          "Basis=" ++ show (Set.toList basis) ++ ", f=" ++ show fCost ++ ", must=" ++ show (Set.toList mustRemain)
 

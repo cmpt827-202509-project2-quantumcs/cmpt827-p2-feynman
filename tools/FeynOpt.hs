@@ -6,7 +6,7 @@ module Main (main) where
 import Feynman.FeatureFlags
 import Feynman.Core (Primitive,
                      ID,
-                     HasFeynmanControl,
+                     HasFeatureFlags,
                      simplifyPrimitive',
                      expandCNOT,
                      expandCNOT',
@@ -96,7 +96,7 @@ optimizeDotQC f qc = qc { DotQC.decls = map go $ DotQC.decls qc }
           in
             decl { DotQC.body = wrap (f circuitQubits circuitInputs) $ DotQC.body decl }
 
-decompileDotQC :: (HasFeynmanControl) => DotQC.DotQC -> DotQC.DotQC
+decompileDotQC :: (HasFeatureFlags) => DotQC.DotQC -> DotQC.DotQC
 decompileDotQC qc = qc { DotQC.decls = map go $ DotQC.decls qc }
   where go decl =
           let circuitQubits  = DotQC.qubits qc ++ DotQC.params decl
@@ -107,7 +107,7 @@ decompileDotQC qc = qc { DotQC.decls = map go $ DotQC.decls qc }
           in
             decl { DotQC.body = resynthesize $ DotQC.body decl }
 
-dotQCPass :: (HasFeynmanControl) => Pass -> (DotQC.DotQC -> DotQC.DotQC)
+dotQCPass :: (HasFeatureFlags) => Pass -> (DotQC.DotQC -> DotQC.DotQC)
 dotQCPass pass = case pass of
   Triv               -> id
   Inline             -> DotQC.inlineDotQC
@@ -140,7 +140,7 @@ equivalenceCheckDotQC qc qc' =
       (_, Inconclusive sop) -> Left $ "Failed to verify: \n  " ++ show sop
       _                     -> Right qc'
 
-runDotQC :: (HasFeynmanControl) => [Pass] -> Bool -> String -> ByteString -> IO ()
+runDotQC :: (HasFeatureFlags) => [Pass] -> Bool -> String -> ByteString -> IO ()
 runDotQC passes verify fname src = do
   start <- getCPUTime
   end   <- parseAndPass `seq` getCPUTime
@@ -166,7 +166,7 @@ runDotQC passes verify fname src = do
           return (qc, qc')
 
 {- Deprecated transformations for benchmark suites -}
-benchPass :: (HasFeynmanControl) => [Pass] -> (DotQC.DotQC -> Either String DotQC.DotQC)
+benchPass :: (HasFeatureFlags) => [Pass] -> (DotQC.DotQC -> Either String DotQC.DotQC)
 benchPass passes = \qc -> Right $ foldr dotQCPass qc passes
 
 benchVerif :: Bool -> Maybe (DotQC.DotQC -> DotQC.DotQC -> Either String DotQC.DotQC)
@@ -175,7 +175,7 @@ benchVerif False = Nothing
 
 {- QASM -}
 
-qasmPass :: Bool -> Pass -> (QASM2.QASM -> QASM2.QASM)
+qasmPass :: (HasFeatureFlags) => Bool -> Pass -> (QASM2.QASM -> QASM2.QASM)
 qasmPass pureCircuit pass = case pass of
   Triv           -> id
   Inline         -> QASM2.inline
@@ -194,7 +194,7 @@ qasmPass pureCircuit pass = case pass of
   CX             -> QASM2.applyOpt (\_ _ -> expandCZ) pureCircuit
   Decompile      -> id
 
-runQASM :: [Pass] -> Bool -> Bool -> String -> String -> IO ()
+runQASM :: (HasFeatureFlags) => [Pass] -> Bool -> Bool -> String -> String -> IO ()
 runQASM passes verify pureCircuit fname src = do
   start <- getCPUTime
   end   <- parseAndPass `seq` getCPUTime
@@ -346,13 +346,13 @@ defaultOptions = Options {
 
 parseArgs :: Bool -> Options -> [String] -> IO ()
 parseArgs doneSwitches options []     = printHelp
-parseArgs doneSwitches options (x:xs) = case x of
-  f | doneSwitches -> runFile f
-  "-h"           -> printHelp
+parseArgs doneSwitches options (x:xs) = let ?featureFlags = control options in case x of
+  f | doneSwitches  -> runFile f
+  "-h"              -> printHelp
   '-':'-':'f':'t':'r':'-':controlSwitchName
-                 -> case featureSwitchFunction controlSwitchName of
-                      Just f -> parseArgs doneSwitches options {control=(f (control options))} xs
-                      Nothing -> putStrLn ("Ignoring unrecognized feature switch " ++ x)
+                    -> case featureSwitchFunction controlSwitchName of
+                          Just f -> parseArgs doneSwitches options {control=(f (control options))} xs
+                          Nothing -> putStrLn ("Ignoring unrecognized feature switch " ++ x)
   "-purecircuit"    -> parseArgs doneSwitches options {pureCircuit = True} xs
   "-inline"         -> parseArgs doneSwitches options {passes = Inline:passes options} xs
   "-unroll"         -> parseArgs doneSwitches options {passes = Unroll:passes options} xs
@@ -377,21 +377,15 @@ parseArgs doneSwitches options (x:xs) = case x of
   "-ppf"            -> parseArgs doneSwitches options {passes = ppf ++ passes options} xs
   "-verify"         -> parseArgs doneSwitches options {verify = True} xs
   "-benchmark"      -> benchmarkFolder (head xs) >>=
-                         let ?featureFlags=control options
-                          in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options)
+                         runBenchmarks (benchPass $ passes options) (benchVerif $ verify options)
   "-qasm3"          -> parseArgs doneSwitches options {useQASM3 = True} xs
   "-invgen"         -> generateInvariants (head xs)
   "--"              -> parseArgs True options xs
-  "Small"           -> let ?featureFlags=control options
-                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksSmall
-  "Med"             -> let ?featureFlags=control options
-                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksMedium
-  "All"             -> let ?featureFlags=control options
-                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksAll
-  "POPL25"          -> let ?featureFlags=control options
-                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25
-  "POPL25QASM"      -> let ?featureFlags=control options
-                        in runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25QASM
+  "Small"           -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksSmall
+  "Med"             -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksMedium
+  "All"             -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksAll
+  "POPL25"          -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25
+  "POPL25QASM"      -> runBenchmarks (benchPass $ passes options) (benchVerif $ verify options) benchmarksPOPL25QASM
   f | ((drop (length f - 3) f) == ".qc") || ((drop (length f - 5) f) == ".qasm") -> runFile f
   f | otherwise -> putStrLn ("Unrecognized option \"" ++ f ++ "\"") >> printHelp
   where o2  = [Simplify,Phasefold,Simplify,CT,Simplify,MCT]
@@ -400,10 +394,9 @@ parseArgs doneSwitches options (x:xs) = case x of
         apf = [Simplify,Paulifold 1,Simplify,Statefold 1,Statefold 1,Phasefold,Simplify,CT,Simplify,MCT]
         qpf = [Simplify,Paulifold 1,Simplify,Statefold 2,Statefold 2,Phasefold,Simplify,CT,Simplify,MCT]
         ppf = [Simplify,Paulifold 1,Simplify,Statefold 0,Statefold 0,Phasefold,Simplify,CT,Simplify,MCT]
-        runFile f | (drop (length f - 3) f) == ".qc"   =
-          B.readFile f >>= (let ?featureFlags=control options
-                             in runDotQC (passes options) (verify options) f)
-        runFile f | (drop (length f - 5) f) == ".qasm" =
+        runFile f | (drop (length f - 3) f) == ".qc"   = let ?featureFlags = control options in 
+          B.readFile f >>= (runDotQC (passes options) (verify options) f)
+        runFile f | (drop (length f - 5) f) == ".qasm" = let ?featureFlags = control options in 
           if useQASM3 options then readFile f >>= runQASM3 (passes options) (verify options) (pureCircuit options) f
                               else readFile f >>= runQASM (passes options) (verify options) (pureCircuit options) f
         runFile f = putStrLn ("Unrecognized file type \"" ++ f ++ "\"") >> printHelp

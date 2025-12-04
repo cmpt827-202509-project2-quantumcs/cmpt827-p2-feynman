@@ -13,6 +13,7 @@ data FeatureFlags = FeatureFlags
     fcfTrace_Synthesis_Pathsum_Unitary :: Bool,
     fcfTrace_Synthesis_XAG :: Bool,
     fcfTrace_Graph :: Bool,
+    fcfTrace_AStar :: Bool,
     fcfFeature_Synthesis_Pathsum_Unitary_AffineSynth :: Bool,
     fcfFeature_Synthesis_Pathsum_Unitary_MCTSynth :: Bool,
     fcfFeature_Synthesis_Pathsum_Unitary_XAGSynth :: Bool,
@@ -22,7 +23,9 @@ data FeatureFlags = FeatureFlags
     fcfFeature_Synthesis_Pathsum_Unitary_XAGMBURzPhase :: Bool,
     fcfFeature_Synthesis_XAG_Direct :: Bool,
     fcfFeature_Synthesis_XAG_Strash :: Bool,
-    fcfFeature_Synthesis_XAG_MinMultSat :: Bool
+    fcfFeature_Synthesis_XAG_MinMultSat :: Bool,
+    fcfFeature_GrAStar_Heuristic_Trivial :: Bool,
+    fcfFeature_GrAStar_Heuristic_PhaseCount :: Bool
   }
 
 defaultFeatures :: FeatureFlags
@@ -31,6 +34,7 @@ defaultFeatures =
     { fcfTrace_Synthesis_Pathsum_Unitary = False,
       fcfTrace_Synthesis_XAG = False,
       fcfTrace_Graph = False,
+      fcfTrace_AStar = False,
       fcfFeature_Synthesis_Pathsum_Unitary_AffineSynth = True,
       fcfFeature_Synthesis_Pathsum_Unitary_MCTSynth = False,
       fcfFeature_Synthesis_Pathsum_Unitary_XAGSynth = False,
@@ -40,7 +44,9 @@ defaultFeatures =
       fcfFeature_Synthesis_Pathsum_Unitary_XAGMBURzPhase = False,
       fcfFeature_Synthesis_XAG_Direct = False,
       fcfFeature_Synthesis_XAG_Strash = False,
-      fcfFeature_Synthesis_XAG_MinMultSat = False
+      fcfFeature_Synthesis_XAG_MinMultSat = False,
+      fcfFeature_GrAStar_Heuristic_Trivial = False,
+      fcfFeature_GrAStar_Heuristic_PhaseCount = False
     }
 
 -- This is pretty meh, but when I considered giving making these switches into
@@ -70,6 +76,12 @@ reset_fcfFeature_Synthesis_XAG fc =
       fcfFeature_Synthesis_XAG_MinMultSat = False
     }
 
+reset_fcfFeature_GrAStar_Heuristic fc =
+  fc
+    { fcfFeature_GrAStar_Heuristic_Trivial = False,
+      fcfFeature_GrAStar_Heuristic_PhaseCount = False
+    }
+
 isFeatureSwitch :: String -> Bool
 isFeatureSwitch s = isJust (featureSwitchFunction s)
 
@@ -77,6 +89,7 @@ featureSwitchFunction :: String -> Maybe (FeatureFlags -> FeatureFlags)
 featureSwitchFunction "trace-unitary" = Just (\fc -> fc {fcfTrace_Synthesis_Pathsum_Unitary = True})
 featureSwitchFunction "trace-xag" = Just (\fc -> fc {fcfTrace_Synthesis_XAG = True})
 featureSwitchFunction "trace-graph" = Just (\fc -> fc {fcfTrace_Graph = True})
+featureSwitchFunction "trace-astar" = Just (\fc -> fc {fcfTrace_AStar = True})
 featureSwitchFunction "unitary-ket-original" =
   Just (\fc -> (reset_fcfFeature_Synthesis_Pathsum_Unitary_Synth fc) {fcfFeature_Synthesis_Pathsum_Unitary_AffineSynth = True})
 featureSwitchFunction "unitary-ket-mct" =
@@ -97,6 +110,10 @@ featureSwitchFunction "xag-strash" =
   Just (\fc -> (reset_fcfFeature_Synthesis_XAG fc) {fcfFeature_Synthesis_XAG_Strash = True})
 featureSwitchFunction "xag-minmultsat" =
   Just (\fc -> (reset_fcfFeature_Synthesis_XAG fc) {fcfFeature_Synthesis_XAG_MinMultSat = True})
+featureSwitchFunction "gas-heuristic-trivial" =
+  Just (\fc -> (reset_fcfFeature_GrAStar_Heuristic fc) {fcfFeature_GrAStar_Heuristic_Trivial = True})
+featureSwitchFunction "gas-heuristic-phasecount" =
+  Just (\fc -> (reset_fcfFeature_GrAStar_Heuristic fc) {fcfFeature_GrAStar_Heuristic_PhaseCount = True})
 featureSwitchFunction _ = Nothing
 
 useFeature :: (?featureFlags :: FeatureFlags) => (FeatureFlags -> Bool) -> Bool

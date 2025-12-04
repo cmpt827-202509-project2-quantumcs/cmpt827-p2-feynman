@@ -221,6 +221,7 @@ tpar i o = pushSwaps . gtpar tparMaster i o
 minCNOT = gtpar cnotMinGrayPointed
 
 -- minCNOTGrAStar: the CNOT minimization by A* heuristic search
+minCNOTGrAStar :: (HasFeatureFlags) => [ID] -> [ID] -> [Primitive] -> [Primitive]
 minCNOTGrAStar = gtpar cnotMinGrAStar
 
 {- Open synthesis -}

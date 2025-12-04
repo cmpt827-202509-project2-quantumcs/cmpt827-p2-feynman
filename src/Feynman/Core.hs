@@ -13,7 +13,7 @@ import Feynman.FeatureFlags (FeatureFlags)
 import Feynman.Algebra.Base
 
 
-type HasFeynmanControl = (?featureFlags :: FeatureFlags)
+type HasFeatureFlags = (?featureFlags :: FeatureFlags)
 
 
 type ID = String
