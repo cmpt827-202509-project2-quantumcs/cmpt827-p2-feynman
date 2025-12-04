@@ -35,6 +35,7 @@ module Feynman.Algebra.Base(
 where
 
 import Data.Bits
+import Data.Hashable (Hashable(..))
 import Data.Ratio
 import Data.Proxy
 
@@ -173,6 +174,7 @@ injectMod (Zmod x) = toInteger x
 -- | Dyadic rationals
 data DyadicRational = Dy !Integer {-# UNPACK #-} !Int deriving (Eq)
 
+
 instance Show DyadicRational where
   show (Dy a 0) = show a
   show (Dy a n) = show a ++ "/2" ++ (Unicode.supscript $ toInteger n)
@@ -208,6 +210,10 @@ instance Dyadic DyadicRational where
   fromDyadic      = id
   half            = Dy 1 1
   divTwo (Dy a n) = Dy a (n+1)
+
+instance Hashable DyadicRational where
+  hash (Dy a n) = hashWithSalt (hash a) n
+  hashWithSalt s (Dy a n) = hashWithSalt (hashWithSalt s a) n
 
 -- | Write in a normalized, canonical form
 canonicalize :: DyadicRational -> DyadicRational
@@ -275,6 +281,10 @@ instance Dyadic DMod2 where
   fromDyadic    = D2 . reduce
   half          = D2 half
   divTwo (D2 a) = D2 $ divTwo a
+
+instance Hashable DMod2 where
+  hash (D2 d)           = hash d
+  hashWithSalt s (D2 d) = hashWithSalt s d
 
 -- | Construct a dyadic fraction mod 2
 dMod2 :: Integer -> Int -> DMod2

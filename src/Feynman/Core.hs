@@ -3,10 +3,11 @@ module Feynman.Core where
 
 import Data.List
 import Control.Monad
-import Data.Set (Set)
-import qualified Data.Set as Set
+import Data.Hashable (Hashable(..))
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Feynman.FeatureFlags (FeatureFlags)
 import Feynman.Algebra.Base
@@ -21,6 +22,12 @@ type Loc = Int
 {- Phase angles -}
 -- Phase angles either have the form pi*(a/2^b) reduced mod 2, or theta
 data Angle = Discrete DMod2 | Continuous Double deriving (Eq, Ord)
+
+instance Hashable Angle where
+  hash (Discrete d)   = hash d
+  hash (Continuous d) = hash d
+  hashWithSalt s (Discrete d)   = hashWithSalt s d
+  hashWithSalt s (Continuous d) = hashWithSalt s d
 
 apply :: (forall a. Num a => a -> a) -> Angle -> Angle
 apply f (Discrete a)   = Discrete $ f a

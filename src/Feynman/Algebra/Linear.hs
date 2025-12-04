@@ -11,6 +11,10 @@ import Data.List hiding (transpose)
 import Control.Monad
 import Control.Monad.Writer
 
+import Data.Foldable (foldMap')
+
+import Data.Hashable (Hashable(..))
+
 import Data.Map (Map, (!))
 import qualified Data.Map as Map
 
@@ -21,6 +25,9 @@ import Data.Coerce
 
 import Data.Bits
 import qualified Data.BitVector as BitVector
+
+import Data.Word (Word64)
+
 
 import Test.QuickCheck hiding ((.&.))
 
@@ -84,6 +91,13 @@ instance Num F2Vec where
 instance Matroid F2Vec where
   independent s = (Set.size s) == (rank $ fromList $ Set.toList s)
 
+instance Hashable F2Vec where
+  hashWithSalt s (F2Vec bv)
+    | BitVector.size bv <= 30 = hashWithSalt s (fromIntegral bv :: Int)
+    | otherwise               = foldl' hashWithSalt s bitGroups
+    where bitGroups :: [Int]
+          bitGroups = map fromIntegral (BitVector.group 30 bv)
+
 allVecs :: Int -> [F2Vec]
 allVecs n = map (bitVec n) [0..2^n-1]
 
@@ -102,6 +116,11 @@ data F2Mat = F2Mat {
 
 instance Show F2Mat where
   show (F2Mat m n vals) = intercalate "\n" $ map show vals
+
+instance Hashable F2Mat where
+  hashWithSalt s mat = let s'  = hashWithSalt s  (m mat)
+                           s'' = hashWithSalt s' (n mat)
+                        in foldl' hashWithSalt s'' (vals mat)
 
 {- Constructors -}
 identity :: Int -> F2Mat
