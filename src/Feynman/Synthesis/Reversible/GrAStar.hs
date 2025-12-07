@@ -83,8 +83,8 @@ cnotMinGrAStar input output must may =
   where
     inputBasis = Set.fromList (vals inputMat)
     rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
-    (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
-
+    -- (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
+    (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, []))
     n = Map.size input
     (qids, inVecs) = unzip (Map.toList input)
     inputMat = fromList inVecs
@@ -93,6 +93,23 @@ cnotMinGrAStar input output must may =
                   _ | useFeature fcfFeature_GrAStar_Heuristic_Trivial -> trivialHeuristic
                   _ | useFeature fcfFeature_GrAStar_Heuristic_PhaseCount -> phaseCountHeuristic
                   _ -> error "No default heuristic at the moment"
+
+    nodePriority
+      :: (Set F2Vec, Set F2Vec, Set F2Vec)  -- PSQ key = (mustRemain, basis, generated)
+      -> F2Mat                              -- current matrix
+      -> [Primitive]                        -- circuit so far (reversed)
+      -> Int
+    nodePriority key@(mustRemain, _, _) curMat circRev =
+      let g       = length circRev
+          hPhase  = heuristic key
+          curTrans = Map.fromList (zip qids (vals curMat))
+          -- hLin = cost of linearSynth from current transform to output
+          hLin    = length (linearSynth curTrans output)
+          -- lower bound of remaining work
+          h       = max hPhase hLin
+      in g + h
+    
+    rootF = nodePriority rootKey inputMat []
 
     -- Skeleton of A*:
     --   while there are still nodes in the queue:
@@ -125,8 +142,10 @@ cnotMinGrAStar input output must may =
                                                      Just (childKey, childF, childVal)
               where
                 childKey = (childMustRemain, childBasis, childGenerated)
-                childF = length circRev + heuristic childKey
-                childVal = (childMat, newGate:circRev)
+                childCirc = newGate : circRev
+                childF = nodePriority childKey childMat childCirc
+                -- childF = length circRev + heuristic childKey
+                childVal = (childMat, childCirc)
 
                 childMustRemain = Set.delete newParity mustRemain
                 childBasis = Set.insert newParity (Set.delete curParity basis)
