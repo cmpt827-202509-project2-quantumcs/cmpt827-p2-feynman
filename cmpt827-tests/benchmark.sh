@@ -17,8 +17,8 @@ fi
 BENCHMARKS=(
 #   barenco_tof_10
     barenco_tof_3
-#   barenco_tof_4
-#   barenco_tof_5
+    barenco_tof_4
+    barenco_tof_5
 #   csla_mux_3
 #   csum_mux_9
 #   fprenorm
@@ -42,8 +42,8 @@ BENCHMARKS=(
 #   rc_adder_6
 #   tof_10
     tof_3
-#   tof_4
-#   tof_5
+  tof_4
+  tof_5
 #   vbe_adder_3
 )
 echo ${BENCHMARKS[@]}

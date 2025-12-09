@@ -41,15 +41,33 @@ traceValA = traceValIf (useFeature fcfTrace_AStar)
 
 
 -- Optionally adds "may" phases whenever possible
+-- FIXED: Now checks if the initial state satisfies any phases before processing gates.
 addMay :: LinearTrans -> [Phase] -> [Primitive] -> ([Primitive], [Phase])
-addMay st phases = (\(a,b) -> (reverse a,b)) . snd . foldl' go (st,([],phases)) where
-  go (st,(circ,may)) gate@(CNOT c t) =
-    let tmp = (st!t) + (st!c) in
-      case partition (\phase -> fst phase == tmp) may of
-        ([], may')      -> (Map.insert t tmp st, (gate:circ, may'))
-        ([phase], may') -> (Map.insert t tmp st, (circ', may')) where
-          circ' = synthesizePhase t (snd phase) ++ (gate:circ)
-  go (st,(circ,may)) gate = (st,(gate:circ,may))
+addMay st phases circ = (reverse resCirc, resPhases)
+  where
+    -- 1. Identify phases satisfied by the initial state immediately
+    (satisfied, remaining) = partition (\(v, _) -> v `elem` Map.elems st) phases
+    
+    -- Helper to map Vector -> Qubit ID (reverse lookup of state)
+    vecToQubit = Map.fromList [ (v, k) | (k, v) <- Map.toList st ]
+    
+    -- Generate gates for the phases satisfied at the input
+    initGates = concatMap (\(v, a) -> synthesizePhase (vecToQubit ! v) a) satisfied
+
+    -- 2. Process the rest of the circuit
+    -- We initialize the accumulator with 'reverse initGates' so they appear at the
+    -- start of the final circuit (since the accumulator builds in reverse).
+    initialAccum = (st, (reverse initGates, remaining))
+
+    (_, (resCirc, resPhases)) = foldl' go initialAccum circ
+    
+    go (st,(circ,may)) gate@(CNOT c t) =
+      let tmp = (st!t) + (st!c) in
+        case partition (\phase -> fst phase == tmp) may of
+          ([], may')      -> (Map.insert t tmp st, (gate:circ, may'))
+          ([phase], may') -> (Map.insert t tmp st, (circ', may')) where
+            circ' = synthesizePhase t (snd phase) ++ (gate:circ)
+    go (st,(circ,may)) gate = (st,(gate:circ,may))
 
 
 -- Generally in this algorithm, we care about storing 3 elements for each node:
