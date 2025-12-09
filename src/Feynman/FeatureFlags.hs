@@ -14,6 +14,7 @@ data FeatureFlags = FeatureFlags
     fcfTrace_Synthesis_XAG :: Bool,
     fcfTrace_Graph :: Bool,
     fcfTrace_AStar :: Bool,
+    fcfTrace_AStarSearch :: Bool,
     fcfFeature_Synthesis_Pathsum_Unitary_AffineSynth :: Bool,
     fcfFeature_Synthesis_Pathsum_Unitary_MCTSynth :: Bool,
     fcfFeature_Synthesis_Pathsum_Unitary_XAGSynth :: Bool,
@@ -35,6 +36,7 @@ defaultFeatures =
       fcfTrace_Synthesis_XAG = False,
       fcfTrace_Graph = False,
       fcfTrace_AStar = False,
+      fcfTrace_AStarSearch = False,
       fcfFeature_Synthesis_Pathsum_Unitary_AffineSynth = True,
       fcfFeature_Synthesis_Pathsum_Unitary_MCTSynth = False,
       fcfFeature_Synthesis_Pathsum_Unitary_XAGSynth = False,
@@ -90,6 +92,7 @@ featureSwitchFunction "trace-unitary" = Just (\fc -> fc {fcfTrace_Synthesis_Path
 featureSwitchFunction "trace-xag" = Just (\fc -> fc {fcfTrace_Synthesis_XAG = True})
 featureSwitchFunction "trace-graph" = Just (\fc -> fc {fcfTrace_Graph = True})
 featureSwitchFunction "trace-astar" = Just (\fc -> fc {fcfTrace_AStar = True})
+featureSwitchFunction "trace-astar-search" = Just (\fc -> fc {fcfTrace_AStarSearch = True})
 featureSwitchFunction "unitary-ket-original" =
   Just (\fc -> (reset_fcfFeature_Synthesis_Pathsum_Unitary_Synth fc) {fcfFeature_Synthesis_Pathsum_Unitary_AffineSynth = True})
 featureSwitchFunction "unitary-ket-mct" =

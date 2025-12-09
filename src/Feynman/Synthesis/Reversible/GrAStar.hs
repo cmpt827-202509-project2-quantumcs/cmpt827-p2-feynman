@@ -33,6 +33,9 @@ import Control.Exception (assert)
 traceA :: (HasFeatureFlags) => String -> a -> a
 traceA = traceIf (useFeature fcfTrace_AStar)
 
+traceASearch :: (HasFeatureFlags) => String -> a -> a
+traceASearch = traceIf (useFeature fcfTrace_AStarSearch)
+
 traceValA :: (HasFeatureFlags) => (a -> String) -> a -> a
 traceValA = traceValIf (useFeature fcfTrace_AStar)
 
@@ -79,8 +82,11 @@ phaseCountHeuristic (mustRemain, _, _) = Set.size mustRemain
 -- Returns a list of gates, and a list of successfully synthesized phase functions.
 cnotMinGrAStar :: (HasFeatureFlags) => LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
 cnotMinGrAStar input output must may =
-  addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
+  traceA ("GrAStar output=" ++ show (Map.toList output) ++ ", must=" ++ show must ++ ", may=" ++ show may ++ "\n  circuit=" ++ show resCirc ++ "\n  phases=" ++ show resPhases)
+    (resCirc, resPhases)
   where
+    (resCirc, resPhases) = addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
+
     inputBasis = Set.fromList (vals inputMat)
     rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
     -- (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
@@ -124,7 +130,7 @@ cnotMinGrAStar input output must may =
     -- The "key" also contains the full set of generated parities for the circuit now
     expandNext :: (HasFeatureFlags) => AStarQ -> (LinearTrans, [Primitive])
     expandNext psq =
-      traceA ("Expanding " ++ formatNode (HashPSQ.findMin psq)) $
+      traceASearch ("Expanding " ++ formatNode (HashPSQ.findMin psq)) $
         generateChildren (HashPSQ.findMin psq)
       where
         generateChildren Nothing = undefined -- shouldn't happen

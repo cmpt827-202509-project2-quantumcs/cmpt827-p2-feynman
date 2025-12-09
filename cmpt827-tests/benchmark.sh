@@ -15,38 +15,38 @@ if [ ! -f "$FEYNOPT" ]; then
     exit 1
 fi
 BENCHMARKS=(
-#   barenco_tof_10.qc
-#   barenco_tof_3.qc
-  barenco_tof_4.qc
-#   barenco_tof_5.qc
-#   csla_mux_3.qc
-#   csum_mux_9.qc
-#   fprenorm.qc
-#  'gf2^10_mult.qc'
-#  'gf2^4_mult.qc'
-#  'gf2^5_mult.qc'
-#  'gf2^6_mult.qc'
-#  'gf2^7_mult.qc'
-#  'gf2^8_mult.qc'
-#  'gf2^9_mult.qc'
-#   grover_5.qc
-#   ham15-low.qc
-#   hwb6.qc
-#   mod5_4.qc
-#   mod_mult_55.qc
-#   mod_red_21.qc
-#   qcla_adder_10.qc
-#   qcla_com_7.qc
-#   qcla_mod_7.qc
-#   qft_4.qc
-#   rc_adder_6.qc
-#   tof_10.qc
-#   tof_3.qc
-#   tof_4.qc
-#   tof_5.qc
-#   vbe_adder_3.qc
+#   barenco_tof_10
+    barenco_tof_3
+#   barenco_tof_4
+#   barenco_tof_5
+#   csla_mux_3
+#   csum_mux_9
+#   fprenorm
+#  'gf2^10_mult'
+#  'gf2^4_mult'
+#  'gf2^5_mult'
+#  'gf2^6_mult'
+#  'gf2^7_mult'
+#  'gf2^8_mult'
+#  'gf2^9_mult'
+#   grover_5
+#   ham15-low
+#   hwb6
+#   mod5_4
+#   mod_mult_55
+#   mod_red_21
+#   qcla_adder_10
+#   qcla_com_7
+#   qcla_mod_7
+#   qft_4
+#   rc_adder_6
+#   tof_10
+    tof_3
+#   tof_4
+#   tof_5
+#   vbe_adder_3
 )
-echo $BENCHMARKS
+echo ${BENCHMARKS[@]}
 # adder_8.qc
 # cycle_17_3.qc
 #'gf2^128_mult.qc'
@@ -62,27 +62,27 @@ echo $BENCHMARKS
 # hwb8.qc
 # mod_adder_1024.qc
 # mod_adder_1048576.qc
-for X in $BENCHMARKS; do
+for X in ${BENCHMARKS[@]}; do
     echo "@@>  Testing performance over $X.."
-    echo "@@   Reference path sum: "`"$FEYNVER" benchmarks/qc/$X`
+    echo "@@   Reference path sum: "`"$FEYNVER" benchmarks/qc/$X.qc`
 
     /usr/bin/time -o cmpt827-tests/out/bench-time-base-$X.txt \
-        "$FEYNOPT" --ftr-trace-astar -cnotmin benchmarks/qc/$X \
-            > cmpt827-tests/out/bench-out-base-$X.txt \
+        "$FEYNOPT" --ftr-trace-astar -cnotmin benchmarks/qc/$X.qc \
+            > cmpt827-tests/out/bench-out-base-$X.qc \
             2> cmpt827-tests/out/bench-err-base-$X.txt
-    echo "@@   graysynth path sum: "`"$FEYNVER" benchmarks/qc/$X`
+    echo "@@   graysynth path sum: "`"$FEYNVER" benchmarks/qc/$X.qc`
 
     # /usr/bin/time -o cmpt827-tests/out/bench-time-astar-t-$X.txt \
-    #     "$FEYNOPT" --ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar benchmarks/qc/$X \
-    #         > cmpt827-tests/out/bench-out-astar-t-$X \
+    #     "$FEYNOPT" --ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar benchmarks/qc/$X.qc \
+    #         > cmpt827-tests/out/bench-out-astar-t-$X.qc \
     #         2> cmpt827-tests/out/bench-err-astar-t-$X.txt
-    # echo "@@   graysynth path sum: "`"$FEYNVER" cmpt827-tests/out/bench-out-astar-t-$X`
+    # echo "@@   graysynth path sum: "`"$FEYNVER" cmpt827-tests/out/bench-out-astar-t-$X.qc`
 
     /usr/bin/time -o cmpt827-tests/out/bench-time-astar-pc-$X.txt \
-        "$FEYNOPT" --ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar benchmarks/qc/$X \
-            > cmpt827-tests/out/bench-out-astar-pc-$X \
+        "$FEYNOPT" --ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar benchmarks/qc/$X.qc \
+            > cmpt827-tests/out/bench-out-astar-pc-$X.qc \
             2> cmpt827-tests/out/bench-err-astar-pc-$X.txt
-    echo "@@   grastar path sum: "`"$FEYNVER" cmpt827-tests/out/bench-out-astar-pc-$X`
+    echo "@@   grastar path sum: "`"$FEYNVER" cmpt827-tests/out/bench-out-astar-pc-$X.qc`
 
 done
 echo "@@> Done."
