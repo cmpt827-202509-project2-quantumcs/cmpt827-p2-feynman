@@ -100,8 +100,9 @@ phaseCountHeuristic (mustRemain, _, _) = Set.size mustRemain
 -- Returns a list of gates, and a list of successfully synthesized phase functions.
 cnotMinGrAStar :: (HasFeatureFlags) => LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
 cnotMinGrAStar input output must may =
-  traceA ("GrAStar output=" ++ show (Map.toList output) ++ ", must=" ++ show must ++ ", may=" ++ show may ++ "\n  circuit=" ++ show resCirc ++ "\n  phases=" ++ show resPhases)
-    (resCirc, resPhases)
+  traceA ("GrAStar output=" ++ show (Map.toList output) ++ ", must=" ++ show must ++ ", may=" ++ show may) $
+    traceA ("  circuit=" ++ show resCirc ++ "\n  phases=" ++ show resPhases)
+      (resCirc, resPhases)
   where
     (resCirc, resPhases) = addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
 
