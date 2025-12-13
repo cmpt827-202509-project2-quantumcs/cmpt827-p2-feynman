@@ -115,16 +115,18 @@ linSynthHeuristic curMat (mustRemain, _, _) =
 -- Returns a list of gates, and a list of successfully synthesized phase functions.
 cnotMinGrAStar :: (HasFeatureFlags) => LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
 cnotMinGrAStar input output must may =
-  traceA ("GrAStar output=" ++ show (Map.toList output) ++ ", must=" ++ show must ++ ", may=" ++ show may) $
-    traceA ("  circuit=" ++ show resCirc ++ "\n  phases=" ++ show resPhases)
-      (resCirc, resPhases)
+  traceA ("+ GrAStar output=" ++ show (Map.toList output) ++ ", must=" ++ show must ++ ", may=" ++ show may) $
+    traceA ("+ circuit=" ++ show resCirc ++ "\n  phases=" ++ show resPhases) $
+      traceA ("+ STATS - " ++ "Generating nodes: " ++ show genNodes ++ ", Expanding nodes: " ++ show expNodes) $
+      traceA("###################################################################################") $
+        (resCirc, resPhases)
   where
     (resCirc, resPhases) = addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
 
     inputBasis = Set.fromList (vals inputMat)
     rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
     -- (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
-    (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, []))
+    ((lastTransform, circuit), (genNodes, expNodes)) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, [])) (0, 0)
     n = Map.size input
     (qids, inVecs) = unzip (Map.toList input)
     inputMat = fromList inVecs
@@ -163,15 +165,18 @@ cnotMinGrAStar input output must may =
     --   otherwise, search failed! there's no solution.
 
     -- The "key" also contains the full set of generated parities for the circuit now
-    expandNext :: (HasFeatureFlags) => AStarQ -> (LinearTrans, [Primitive])
-    expandNext psq =
+    expandNext :: (HasFeatureFlags) => AStarQ -> (Int, Int) -> ((LinearTrans, [Primitive]), (Int, Int))
+    expandNext psq (genNodes, expNodes) =
+      let newExpNodes = expNodes + 1 in
       traceASearch ("Expanding " ++ formatNode (HashPSQ.findMin psq)) $
-        generateChildren (HashPSQ.findMin psq)
+        generateChildren (HashPSQ.findMin psq) newExpNodes
       where
-        generateChildren Nothing = undefined -- shouldn't happen
-        generateChildren (Just ((mustRemain, basis, generated), fCost, (curMat, circRev)))
-          | null mustRemain = (curTransform, reverse circRev) -- no musts left: goal achieved!
-          | otherwise       = expandNext (foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes)
+        generateChildren Nothing _ = undefined -- shouldn't happen
+        generateChildren (Just ((mustRemain, basis, generated), fCost, (curMat, circRev))) newExpNodes 
+          | null mustRemain = ((curTransform, reverse circRev), (genNodes, newExpNodes)) -- no musts left: goal achieved!
+          | otherwise       =
+            let newGenNodes = genNodes + length childNodes in 
+             expandNext (foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes) (newGenNodes, newExpNodes)
           -- Try adding every different CNOT to the PSQ
           where
             curTransform = Map.fromList (zip qids (vals curMat))
