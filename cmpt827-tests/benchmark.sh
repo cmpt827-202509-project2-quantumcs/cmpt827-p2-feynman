@@ -115,10 +115,10 @@ function benchmark {
     printf "@@> Testing performance over %s..\n" "${QC_NAME}"
     printf "@@   Reference path sum: %s\n" "$("${FEYNVER}" "${QC_IN}")"
 
-    benchmark_one graysynth "-cnotmin" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-phasecount "--ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-linsynth "--ftr-trace-astar --ftr-gas-heuristic-linsynth -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    benchmark_one graysynth "-inline -simplify -cnotmin -simplify" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -inline -simplify -cnotminGrASta -simplifyr" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-phasecount "--ftr-trace-astar --ftr-gas-heuristic-phasecount -inline -simplify -cnotminGrAStar -simplify" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-linsynth "--ftr-trace-astar --ftr-gas-heuristic-linsynth -inline -simplify -cnotminGrAStar -simplify" "${QC_NAME}" "${QC_IN}"
 }
 
 
