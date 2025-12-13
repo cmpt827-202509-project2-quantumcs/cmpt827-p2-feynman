@@ -10,6 +10,7 @@ feynopt
 feynver
 
 # folders
+/.vscode/
 dist/
 .cabal-sandbox/
 tmp/
