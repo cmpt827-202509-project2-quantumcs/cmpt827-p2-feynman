@@ -22,6 +22,8 @@ import Data.Ord (comparing)
 
 import Data.Maybe
 
+import qualified Data.Map.Strict as Map
+
 import Control.Monad
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Lazy
@@ -86,11 +88,24 @@ type AStarQ = HashPSQ (Set F2Vec, Set F2Vec, Set F2Vec) Int (F2Mat, [Primitive])
 
 
 -- Trivial heuristic forces a breadth-first search
-trivialHeuristic _ = 0 :: Int
+trivialHeuristic _ _ = 0 :: Int
 
 -- Assuming all phases are distinct, we will need at least one CNOT per
-phaseCountHeuristic :: (Set F2Vec, Set F2Vec, Set F2Vec) -> Int
-phaseCountHeuristic (mustRemain, _, _) = Set.size mustRemain
+phaseCountHeuristic :: F2Mat -> (Set F2Vec, Set F2Vec, Set F2Vec) -> Int
+phaseCountHeuristic _ (mustRemain, _, _) = Set.size mustRemain
+
+linSynthHeuristic :: F2Mat -> (Set.Set F2Vec, Set.Set F2Vec, Set.Set F2Vec) -> Int
+linSynthHeuristic curMat (mustRemain, _, _) =
+  case costs of
+    [] -> 0
+    _  -> max 0 (maximum costs - 1)
+  where
+    transposeMat = transpose curMat
+    solve        = minSolution transposeMat -- Solve A^T * x^T = v^T
+    wt (F2Vec bv) = popCount bv
+    costFor v = maybe 0 wt (solve v) -- if unsolvable, cost 0
+    costs = map costFor (Set.toList mustRemain)
+    
 
 
 -- input: the functions currently computed on the qubits
@@ -117,6 +132,7 @@ cnotMinGrAStar input output must may =
     heuristic = case True of
                   _ | useFeature fcfFeature_GrAStar_Heuristic_Trivial -> trivialHeuristic
                   _ | useFeature fcfFeature_GrAStar_Heuristic_PhaseCount -> phaseCountHeuristic
+                  _ | useFeature fcfFeature_GrAStar_Heuristic_LinSynth -> linSynthHeuristic
                   _ -> error "No default heuristic at the moment"
 
     nodePriority
@@ -126,8 +142,8 @@ cnotMinGrAStar input output must may =
       -> Int
     nodePriority key@(mustRemain, _, _) curMat circRev =
       let g       = length circRev
-          hPhase  = heuristic key
           curTrans = Map.fromList (zip qids (vals curMat))
+          hPhase  = heuristic curMat key
           -- hLin = cost of linearSynth from current transform to output
           hLin    = length (linearSynth curTrans output)
           -- lower bound of remaining work

@@ -91,8 +91,11 @@ function benchmark_one {
     printf "@@>  Testing %s over %s:\n" "${NAME}" "${QC_NAME}"
     SECONDS=0
     QC_OUT="${OUT_DIR}/${NAME}_${QC_NAME}.qc"
+    # /usr/bin/time -o ${OUT_DIR}/${NAME}_${QC_NAME}_time.txt \
+    #     timeout "${TIMEOUT}" "${FEYNOPT}" ${ARGS} "${QC_IN}" \
+    #         > "${QC_OUT}" 2> "${OUT_DIR}/${NAME}_${QC_NAME}.log"
     /usr/bin/time -o ${OUT_DIR}/${NAME}_${QC_NAME}_time.txt \
-        timeout "${TIMEOUT}" "${FEYNOPT}" ${ARGS} "${QC_IN}" \
+        "${FEYNOPT}" ${ARGS} "${QC_IN}" \
             > "${QC_OUT}" 2> "${OUT_DIR}/${NAME}_${QC_NAME}.log"
     printf "@@    Finished in ~%s seconds.\n" ${SECONDS}
     printf "@@    %s path sum: %s\n" ${NAME} "$("${FEYNVER}" "${QC_OUT}")"
@@ -115,6 +118,7 @@ function benchmark {
     benchmark_one graysynth "-cnotmin" "${QC_NAME}" "${QC_IN}"
     benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
     benchmark_one grastar-phasecount "--ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-linsynth "--ftr-trace-astar --ftr-gas-heuristic-linsynth -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
 }
 
 

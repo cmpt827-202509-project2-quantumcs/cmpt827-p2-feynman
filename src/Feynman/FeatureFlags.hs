@@ -26,7 +26,8 @@ data FeatureFlags = FeatureFlags
     fcfFeature_Synthesis_XAG_Strash :: Bool,
     fcfFeature_Synthesis_XAG_MinMultSat :: Bool,
     fcfFeature_GrAStar_Heuristic_Trivial :: Bool,
-    fcfFeature_GrAStar_Heuristic_PhaseCount :: Bool
+    fcfFeature_GrAStar_Heuristic_PhaseCount :: Bool,
+    fcfFeature_GrAStar_Heuristic_LinSynth :: Bool
   }
 
 defaultFeatures :: FeatureFlags
@@ -48,7 +49,8 @@ defaultFeatures =
       fcfFeature_Synthesis_XAG_Strash = False,
       fcfFeature_Synthesis_XAG_MinMultSat = False,
       fcfFeature_GrAStar_Heuristic_Trivial = False,
-      fcfFeature_GrAStar_Heuristic_PhaseCount = False
+      fcfFeature_GrAStar_Heuristic_PhaseCount = False,
+      fcfFeature_GrAStar_Heuristic_LinSynth   = False
     }
 
 -- This is pretty meh, but when I considered giving making these switches into
@@ -81,7 +83,8 @@ reset_fcfFeature_Synthesis_XAG fc =
 reset_fcfFeature_GrAStar_Heuristic fc =
   fc
     { fcfFeature_GrAStar_Heuristic_Trivial = False,
-      fcfFeature_GrAStar_Heuristic_PhaseCount = False
+      fcfFeature_GrAStar_Heuristic_PhaseCount = False, 
+      fcfFeature_GrAStar_Heuristic_LinSynth   = False
     }
 
 isFeatureSwitch :: String -> Bool
@@ -117,7 +120,9 @@ featureSwitchFunction "gas-heuristic-trivial" =
   Just (\fc -> (reset_fcfFeature_GrAStar_Heuristic fc) {fcfFeature_GrAStar_Heuristic_Trivial = True})
 featureSwitchFunction "gas-heuristic-phasecount" =
   Just (\fc -> (reset_fcfFeature_GrAStar_Heuristic fc) {fcfFeature_GrAStar_Heuristic_PhaseCount = True})
-featureSwitchFunction _ = Nothing
+featureSwitchFunction "gas-heuristic-linsynth" =
+  Just (\fc -> (reset_fcfFeature_GrAStar_Heuristic fc) {fcfFeature_GrAStar_Heuristic_LinSynth = True})
+featureSwitchFunction _ = Nothing  
 
 useFeature :: (?featureFlags :: FeatureFlags) => (FeatureFlags -> Bool) -> Bool
 useFeature fcf = fcf ?featureFlags
