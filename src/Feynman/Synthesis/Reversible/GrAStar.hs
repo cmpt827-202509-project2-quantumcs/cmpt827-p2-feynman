@@ -114,13 +114,16 @@ linSynthHeuristic curMat (mustRemain, _, _) =
 -- may: some optional goal phases we can add, if it's convenient
 -- Returns a list of gates, and a list of successfully synthesized phase functions.
 cnotMinGrAStar :: (HasFeatureFlags) => LinearTrans -> LinearTrans -> [Phase] -> [Phase] -> ([Primitive], [Phase])
-cnotMinGrAStar input output must may =
+cnotMinGrAStar input output origMust origMay =
   traceA ("+ GrAStar output=" ++ show (Map.toList output) ++ ", must=" ++ show must ++ ", may=" ++ show may) $
     traceA ("+ circuit=" ++ show resCirc ++ "\n  phases=" ++ show resPhases) $
       traceA ("+ STATS - " ++ "Generating nodes: " ++ show genNodes ++ ", Expanding nodes: " ++ show expNodes) $
       traceA("###################################################################################") $
         (resCirc, resPhases)
   where
+    must = filter (\(_, a) -> a /= 0) origMust
+    may = filter (\(_, a) -> a /= 0) origMay
+
     (resCirc, resPhases) = addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
 
     inputBasis = Set.fromList (vals inputMat)
