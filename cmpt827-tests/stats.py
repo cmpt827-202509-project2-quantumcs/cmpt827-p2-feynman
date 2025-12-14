@@ -13,6 +13,84 @@ time_txt_split_re = re.compile(
 parse_times_re = re.compile(
     r"([.:0-9]+)user ([.:0-9]+)system [.:0-9]+elapsed [.0-9]+%CPU \([0-9]+avgtext\+[0-9]+avgdata ([0-9]+)maxresident\)k"
 )
+
+def format_number(value, metric):
+    """Format numbers appropriately based on metric type."""
+    try:
+        num = float(value)
+        if metric in ["user", "sys"]:
+            return f"{num:.2f}"  # Time in seconds with 2 decimal places
+        elif metric == "maxresk":
+            # Convert KB to MB for readability
+            mb = num / 1024
+            return f"{mb:.1f}"
+        else:
+            return str(int(num))  # CNOT count as integer
+    except (ValueError, TypeError):
+        return "---"
+
+def generate_latex_table(methods, inputs, all_attrs):
+    """Generate a combined LaTeX table from the collected data."""
+    
+    # Build LaTeX table
+    latex = []
+    latex.append("% LaTeX table generated from benchmark results")
+    latex.append("% Uses table* for two-column documents\n")
+    
+    latex.append("\\begin{table*}[htbp]")
+    latex.append("\\centering")
+    latex.append("\\caption{Benchmark Results: User Time (s), System Time (s), Max Memory (MB), and CNOT Count}")
+    latex.append("\\label{tab:benchmark_results}")
+    latex.append("\\resizebox{\\textwidth}{!}{%")
+    
+    # Column specification with vertical borders
+    sorted_methods = sorted(methods)
+    col_spec = "|l|" + "|".join(["rrrr"] * len(sorted_methods)) + "|"
+    latex.append(f"\\begin{{tabular}}{{{col_spec}}}")
+    latex.append("\\hline")
+    
+    # Multi-row header
+    # First header row: method names spanning 4 columns each
+    header_row1 = "\\textbf{Benchmark}"
+    for method in sorted_methods:
+        header_row1 += f" & \\multicolumn{{4}}{{c|}}{{\\textbf{{{method}}}}}"
+    latex.append(header_row1 + " \\\\")
+    latex.append("\\hline")
+    
+    # Second header row: metric labels for each method
+    header_row2 = ""
+    for _ in sorted_methods:
+        header_row2 += " & \\textbf{User} & \\textbf{Sys} & \\textbf{Mem} & \\textbf{CNOTs}"
+    latex.append(header_row2 + " \\\\")
+    latex.append("\\hline")
+    
+    # Data rows
+    for input_name in sorted(inputs):
+        row = [input_name.replace("_", "\\_")]
+        
+        for method in sorted_methods:
+            method_attrs = all_attrs.get(method, {})
+            input_attrs = method_attrs.get(input_name, {})
+            
+            user_val = input_attrs.get("user", "")
+            sys_val = input_attrs.get("sys", "")
+            mem_val = input_attrs.get("maxresk", "")
+            cnot_val = input_attrs.get("cnots", "")
+            
+            row.append(format_number(user_val, "user"))
+            row.append(format_number(sys_val, "sys"))
+            row.append(format_number(mem_val, "maxresk"))
+            row.append(format_number(cnot_val, "cnots"))
+        
+        latex.append(" & ".join(row) + " \\\\")
+        latex.append("\\hline")
+    
+    latex.append("\\end{tabular}%")
+    latex.append("}")
+    latex.append("\\end{table*}")
+    
+    return "\n".join(latex)
+
 for run_dir in filter(lambda x: x.is_dir(), out_dir.iterdir()):
     methods = set()
     inputs = set()
@@ -104,3 +182,9 @@ for run_dir in filter(lambda x: x.is_dir(), out_dir.iterdir()):
     write_attrs("sys", "", csv.writer(open(run_dir / "!sys.csv", "wt")))
     write_attrs("maxresk", "", csv.writer(open(run_dir / "!maxresk.csv", "wt")))
     write_attrs("cnots", "", csv.writer(open(run_dir / "!cnots.csv", "wt")))
+    
+    # Generate LaTeX table
+    latex_content = generate_latex_table(methods, inputs, all_attrs)
+    latex_file = run_dir / "benchmark_table.tex"
+    with open(latex_file, "wt") as f:
+        f.write(latex_content)

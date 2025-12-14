@@ -9,7 +9,31 @@ fi
 OUT_DIR="cmpt827-tests/out/"`date +%m%d-%H%M%S`
 LOG="${OUT_DIR}/benchmark.log"
 
-TIMEOUT=60
+TIMEOUT=300
+
+# Detect OS and set appropriate timeout and time commands
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    if command -v gtimeout &> /dev/null; then
+        TIMEOUT_CMD="gtimeout"
+    else
+        printf "Warning: gtimeout not found on macOS. Install with: brew install coreutils\n"
+        printf "Continuing without timeout functionality...\n"
+        TIMEOUT_CMD=""
+    fi
+    
+    if command -v gtime &> /dev/null; then
+        TIME_CMD="gtime"
+    else
+        printf "Warning: gtime not found on macOS. Install with: brew install gnu-time\n"
+        printf "Timing statistics may not be collected properly...\n"
+        TIME_CMD="/usr/bin/time"
+    fi
+else
+    # Linux and others
+    TIMEOUT_CMD="timeout"
+    TIME_CMD="/usr/bin/time"
+fi
 
 BENCHMARKS=(
 # Quick
@@ -91,12 +115,21 @@ function benchmark_one {
     printf "@@>  Testing %s over %s:\n" "${NAME}" "${QC_NAME}"
     SECONDS=0
     QC_OUT="${OUT_DIR}/${NAME}_${QC_NAME}.qc"
-    # /usr/bin/time -o ${OUT_DIR}/${NAME}_${QC_NAME}_time.txt \
-    #     timeout "${TIMEOUT}" "${FEYNOPT}" ${ARGS} "${QC_IN}" \
-    #         > "${QC_OUT}" 2> "${OUT_DIR}/${NAME}_${QC_NAME}.log"
-    /usr/bin/time -o ${OUT_DIR}/${NAME}_${QC_NAME}_time.txt \
-        "${FEYNOPT}" ${ARGS} "${QC_IN}" \
-            > "${QC_OUT}" 2> "${OUT_DIR}/${NAME}_${QC_NAME}.log"
+    
+    # Use timeout if available, otherwise run without it
+    EXIT_CODE=0
+    if [ -n "${TIMEOUT_CMD}" ]; then
+        "${TIME_CMD}" -o ${OUT_DIR}/${NAME}_${QC_NAME}_time.txt \
+            "${TIMEOUT_CMD}" "${TIMEOUT}" "${FEYNOPT}" ${ARGS} "${QC_IN}" \
+                > "${QC_OUT}" 2> "${OUT_DIR}/${NAME}_${QC_NAME}.log"
+        EXIT_CODE=$?
+    else
+        "${TIME_CMD}" -o ${OUT_DIR}/${NAME}_${QC_NAME}_time.txt \
+            "${FEYNOPT}" ${ARGS} "${QC_IN}" \
+                > "${QC_OUT}" 2> "${OUT_DIR}/${NAME}_${QC_NAME}.log"
+        EXIT_CODE=$?
+    fi
+    
     printf "@@    Finished in ~%s seconds.\n" ${SECONDS}
     printf "@@    %s path sum: %s\n" ${NAME} "$("${FEYNVER}" "${QC_OUT}")"
     printf "@@    %s verify: %s\n" ${NAME} "$("${FEYNVER}" "${QC_IN}" "${QC_OUT}")"
