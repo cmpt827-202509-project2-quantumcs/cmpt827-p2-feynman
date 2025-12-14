@@ -96,15 +96,30 @@ phaseCountHeuristic _ (mustRemain, _, _) = Set.size mustRemain
 
 linSynthHeuristic :: F2Mat -> (Set.Set F2Vec, Set.Set F2Vec, Set.Set F2Vec) -> Int
 linSynthHeuristic curMat (mustRemain, _, _) =
-  case costs of
-    [] -> 0
-    _  -> max 0 (maximum costs - 1)
+  let kMust = Set.size mustRemain
+      perParityLB =
+        case Set.toList mustRemain of
+          [] -> 0
+          vs -> max 0 (maximum (map cost vs ) - 1)
+  in max kMust perParityLB
   where
-    transposeMat = transpose curMat
-    solve        = minSolution transposeMat -- Solve A^T * x^T = v^T
-    wt (F2Vec bv) = popCount bv
-    costFor v = maybe 0 wt (solve v) -- if unsolvable, cost 0
-    costs = map costFor (Set.toList mustRemain)
+    tranposeMat = transpose curMat
+
+    -- Faster approach, dont have to calculate minSolution for every node
+    -- Solve A^t * x = v
+    -- If A^t is full rank, there is a unique solution
+    -- Otherwise, find the minimum weight solution
+    solve :: F2Vec -> Maybe F2Vec
+    solve =
+      if fullRank tranposeMat
+        then oneSolution tranposeMat
+        else minSolution tranposeMat
+    
+    cost :: F2Vec -> Int
+    cost v =
+      case solve v of
+        Just x -> wt x
+        Nothing -> 0 -- if the node is unsolvable, return 0 cost
     
 
 
