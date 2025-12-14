@@ -20,16 +20,16 @@ BENCHMARKS=(
     tof_4
 
 # Tolerably slow
-#     hwb6
-#     mod5_4
-#     mod_mult_55
-#     tof_5
+    hwb6
+    mod5_4
+    mod_mult_55
+    tof_5
 
 # Too slow for regular use, you may need to increase timeout
-#     grover_5
+    grover_5
 
 # Too slow period but I have some hope
-#     barenco_tof_5
+    barenco_tof_5
 #     barenco_tof_10
 #     csla_mux_3
 #     csum_mux_9
@@ -115,10 +115,12 @@ function benchmark {
     printf "@@> Testing performance over %s..\n" "${QC_NAME}"
     printf "@@   Reference path sum: %s\n" "$("${FEYNVER}" "${QC_IN}")"
 
-    benchmark_one graysynth "-inline -simplify -cnotmin -simplify" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -inline -simplify -cnotminGrASta -simplifyr" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-phasecount "--ftr-trace-astar --ftr-gas-heuristic-phasecount -inline -simplify -cnotminGrAStar -simplify" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-linsynth "--ftr-trace-astar --ftr-gas-heuristic-linsynth -inline -simplify -cnotminGrAStar -simplify" "${QC_NAME}" "${QC_IN}"
+    # Temporarily remove the -inline -simplify flags to not interfere with the execution time
+    # Investigate more about the affect of these flags to cnotminGrAStar later
+    benchmark_one graysynth "-cnotmin" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-phasecount "--ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-linsynth "--ftr-trace-astar --ftr-gas-heuristic-linsynth -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
 }
 
 
