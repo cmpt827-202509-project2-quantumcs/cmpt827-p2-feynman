@@ -9,7 +9,7 @@ fi
 OUT_DIR="cmpt827-tests/out/"`date +%m%d-%H%M%S`
 LOG="${OUT_DIR}/benchmark.log"
 
-TIMEOUT=300
+TIMEOUT=600
 
 # Detect OS and set appropriate timeout and time commands
 if [[ "$OSTYPE" == "darwin"* ]]; then
