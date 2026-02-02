@@ -85,7 +85,7 @@ addMay st phases circ = (reverse resCirc, resPhases)
 -- "may"s satisfied, or the circuit depth.
 
 type AStarQ = HashPSQ (Set F2Vec, Set F2Vec, Set F2Vec) Int (F2Mat, [Primitive])
-
+type CloseQ = Set (Set F2Vec, Set F2Vec, Set F2Vec)
 
 -- Trivial heuristic forces a breadth-first search
 trivialHeuristic _ _ = 0 :: Int
@@ -144,7 +144,7 @@ cnotMinGrAStar input output origMust origMay =
     inputBasis = Set.fromList (vals inputMat)
     rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
     -- (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
-    ((lastTransform, circuit), (genNodes, expNodes)) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, [])) (0, 0)
+    ((lastTransform, circuit), (genNodes, expNodes)) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, [])) Set.empty (0, 0)
     n = Map.size input
     (qids, inVecs) = unzip (Map.toList input)
     inputMat = fromList inVecs
@@ -183,18 +183,19 @@ cnotMinGrAStar input output origMust origMay =
     --   otherwise, search failed! there's no solution.
 
     -- The "key" also contains the full set of generated parities for the circuit now
-    expandNext :: (HasFeatureFlags) => AStarQ -> (Int, Int) -> ((LinearTrans, [Primitive]), (Int, Int))
-    expandNext psq (genNodes, expNodes) =
+    expandNext :: (HasFeatureFlags) => AStarQ -> CloseQ -> (Int, Int) -> ((LinearTrans, [Primitive]), (Int, Int))
+    expandNext psq closed (genNodes, expNodes) =
       let newExpNodes = expNodes + 1 in
       traceASearch ("Expanding " ++ formatNode (HashPSQ.findMin psq)) $
         generateChildren (HashPSQ.findMin psq) newExpNodes
       where
         generateChildren Nothing _ = undefined -- shouldn't happen
-        generateChildren (Just ((mustRemain, basis, generated), fCost, (curMat, circRev))) newExpNodes 
+        generateChildren (Just (key@(mustRemain, basis, generated), fCost, (curMat, circRev))) newExpNodes 
           | null mustRemain = ((curTransform, reverse circRev), (genNodes, newExpNodes)) -- no musts left: goal achieved!
           | otherwise       =
-            let newGenNodes = genNodes + length childNodes in 
-             expandNext (foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes) (newGenNodes, newExpNodes)
+            let newClosed = Set.insert key closed
+                newGenNodes = genNodes + length childNodes in 
+             expandNext (foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes) newClosed (newGenNodes, newExpNodes)
           -- Try adding every different CNOT to the PSQ
           where
             curTransform = Map.fromList (zip qids (vals curMat))
@@ -202,6 +203,7 @@ cnotMinGrAStar input output origMust origMay =
             childNodes = catMaybes [makeChild i j | i <- [0..n-1], j <- [0..n-1], i /= j]
             makeChild i j
               | newParity `Set.member` generated = Nothing
+              | childKey `Set.member` closed     = Nothing
               | otherwise                        = assert (childBasis == Set.fromList (vals childMat)) $
                                                      Just (childKey, childF, childVal)
               where
