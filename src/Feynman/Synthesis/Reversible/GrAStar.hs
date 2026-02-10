@@ -139,14 +139,41 @@ cnotMinGrAStar input output origMust origMay =
     must = filter (\(_, a) -> a /= 0) origMust
     may = filter (\(_, a) -> a /= 0) origMay
 
-    (resCirc, resPhases) = addMay input (must ++ may) (circuit ++ linearSynth lastTransform output)
+    -- Identify the qubits in "must" parities
+    mandatoryMask = foldl (.|.) 0 (map fst must)
+
+    -- Identify the qubits needed in output
+    (initialKeptQubits, dependencyMask) = Map.foldlWithKey checkOutput (Set.empty, mandatoryMask) input
+
+    checkOutput (kept, mask) qubit val 
+      | output ! qubit /= val = (Set.insert qubit kept, mask .|. output ! qubit)
+      | otherwise                = (kept, mask)
+      
+    -- Identify if there is any additional necessary qubit helping along the way to get the final output parity
+    (finalRelatedQubits, _) = iterateClosure initialKeptQubits dependencyMask
+
+    iterateClosure kept mask =
+      let (kept', mask', changed) = Map.foldlWithKey extend (kept, mask, False) input
+      in if changed then iterateClosure kept' mask' else (kept', mask')
+
+    extend (k, m, c) q val 
+      | Set.member q k = (k, m, c) -- already kept
+      | val .&. m /= 0 = (Set.insert q k, m .|. val, True) -- overlaps needed vars
+      | otherwise      = (k, m, c)
+      
+    -- Filter the final related qubits from input and output for searching and synthesizing  
+    relatedInput  = Map.filterWithKey (\k _ -> Set.member k finalRelatedQubits) input
+    relatedOutput = Map.filterWithKey (\k _ -> Set.member k finalRelatedQubits) output
+
+    (resCirc, remMust) = addMay relatedInput must (circuit ++ linearSynth lastTransform relatedOutput)
+
+    resPhases = remMust ++ may
 
     inputBasis = Set.fromList (vals inputMat)
     rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
-    -- (lastTransform, circuit) = expandNext (HashPSQ.singleton rootKey (heuristic rootKey) (inputMat, []))
     ((lastTransform, circuit), (genNodes, expNodes)) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, [])) Set.empty (0, 0)
-    n = Map.size input
-    (qids, inVecs) = unzip (Map.toList input)
+    n = Map.size relatedInput
+    (qids, inVecs) = unzip (Map.toList relatedInput)
     inputMat = fromList inVecs
 
     heuristic = case True of
@@ -165,7 +192,7 @@ cnotMinGrAStar input output origMust origMay =
           curTrans = Map.fromList (zip qids (vals curMat))
           hPhase  = heuristic curMat key
           -- hLin = cost of linearSynth from current transform to output
-          hLin    = length (linearSynth curTrans output)
+          hLin    = length (linearSynth curTrans relatedOutput)
           -- lower bound of remaining work
           h       = max hPhase hLin
       in g + h
@@ -190,7 +217,7 @@ cnotMinGrAStar input output origMust origMay =
         generateChildren (HashPSQ.findMin psq) newExpNodes
       where
         generateChildren Nothing _ = undefined -- shouldn't happen
-        generateChildren (Just (key@(mustRemain, basis, generated), fCost, (curMat, circRev))) newExpNodes 
+        generateChildren (Just (key@(mustRemain, basis, generated), fCost, (curMat, circRev))) newExpNodes
           | null mustRemain = ((curTransform, reverse circRev), (genNodes, newExpNodes)) -- no musts left: goal achieved!
           | otherwise       =
             let newClosed = Set.insert key closed
@@ -210,7 +237,6 @@ cnotMinGrAStar input output origMust origMay =
                 childKey = (childMustRemain, childBasis, childGenerated)
                 childCirc = newGate : circRev
                 childF = nodePriority childKey childMat childCirc
-                -- childF = length circRev + heuristic childKey
                 childVal = (childMat, childCirc)
 
                 childMustRemain = Set.delete newParity mustRemain
@@ -225,4 +251,3 @@ cnotMinGrAStar input output origMust origMay =
         formatNode Nothing = "<SKIP!>"
         formatNode (Just ((mustRemain, basis, generated), fCost, (curMat, circRev))) =
           "Basis=" ++ show (Set.toList basis) ++ ", f=" ++ show fCost ++ ", must=" ++ show (Set.toList mustRemain)
-

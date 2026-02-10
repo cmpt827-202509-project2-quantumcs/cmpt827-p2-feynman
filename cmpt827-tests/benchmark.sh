@@ -54,7 +54,7 @@ BENCHMARKS=(
 
 # Too slow period but I have some hope
     barenco_tof_5
-#     barenco_tof_10
+    # barenco_tof_10
 #     csla_mux_3
 #     csum_mux_9
 #     fprenorm
@@ -67,17 +67,17 @@ BENCHMARKS=(
 #    'gf2^8_mult'
 #    'gf2^9_mult'
 #    'gf2^10_mult'
-#     ham15-low
+    # ham15-low
 #     mod_red_21
 #     qcla_adder_10
 #     qcla_com_7
 #     qcla_mod_7
 #     rc_adder_6
-#     tof_10
-#     vbe_adder_3
+    tof_10
+    vbe_adder_3
 
 # Some of these we can't even display the path sum
-#     adder_8
+    # adder_8
 #     cycle_17_3
 #    'gf2^128_mult'
 #    'gf2^16_mult'
@@ -89,8 +89,8 @@ BENCHMARKS=(
 #     hwb10
 #     hwb11
 #     hwb12
-#     hwb8
-#     mod_adder_1024
+    # hwb8
+    mod_adder_1024
 #     mod_adder_1048576
 )
 
@@ -150,10 +150,10 @@ function benchmark {
 
     # Temporarily remove the -inline -simplify flags to not interfere with the execution time
     # Investigate more about the affect of these flags to cnotminGrAStar later
-    benchmark_one graysynth "-cnotmin" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-phasecount "--ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
-    benchmark_one grastar-linsynth "--ftr-trace-astar --ftr-gas-heuristic-linsynth -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    benchmark_one graysynth "-inline -cnotmin" "${QC_NAME}" "${QC_IN}"
+    # benchmark_one grastar-trivial "--ftr-trace-astar --ftr-gas-heuristic-trivial -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    benchmark_one grastar-phasecount "-inline --ftr-trace-astar --ftr-gas-heuristic-phasecount -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
+    # benchmark_one grastar-linsynth "-inline --ftr-trace-astar --ftr-gas-heuristic-linsynth -cnotminGrAStar" "${QC_NAME}" "${QC_IN}"
 }
 
 
