@@ -22,8 +22,6 @@ import Data.Ord (comparing)
 
 import Data.Maybe
 
-import qualified Data.Map.Strict as Map
-
 import Control.Monad
 import Control.Monad.State.Strict
 import Control.Monad.Writer.Lazy
@@ -169,9 +167,6 @@ cnotMinGrAStar input output origMust origMay =
 
     resPhases = remMust ++ may
 
-    inputBasis = Set.fromList (vals inputMat)
-    rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
-    ((lastTransform, circuit), (genNodes, expNodes)) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, [])) Set.empty (0, 0)
     n = Map.size relatedInput
     (qids, inVecs) = unzip (Map.toList relatedInput)
     inputMat = fromList inVecs
@@ -182,72 +177,67 @@ cnotMinGrAStar input output origMust origMay =
                   _ | useFeature fcfFeature_GrAStar_Heuristic_LinSynth -> linSynthHeuristic
                   _ -> error "No default heuristic at the moment"
 
-    nodePriority
-      :: (Set F2Vec, Set F2Vec, Set F2Vec)  -- PSQ key = (mustRemain, basis, generated)
-      -> F2Mat                              -- current matrix
-      -> [Primitive]                        -- circuit so far (reversed)
-      -> Int
-    nodePriority key@(mustRemain, _, _) curMat circRev =
-      let g       = length circRev
-          curTrans = Map.fromList (zip qids (vals curMat))
-          hPhase  = heuristic curMat key
-          -- hLin = cost of linearSynth from current transform to output
-          hLin    = length (linearSynth curTrans relatedOutput)
-          -- lower bound of remaining work
-          h       = max hPhase hLin
-      in g + h
+    inputBasis = Set.fromList (vals inputMat)
+    rootKey = (Set.fromList (map fst must) Set.\\ inputBasis, inputBasis, inputBasis)
     
-    rootF = nodePriority rootKey inputMat []
+    initialTrans = Map.fromList (zip qids (vals inputMat))
+    initialHLin = length (linearSynth initialTrans relatedOutput)
+    rootF = 0 + max (heuristic inputMat rootKey) initialHLin
+    initialMemo = Map.singleton initialTrans initialHLin
 
-    -- Skeleton of A*:
-    --   while there are still nodes in the queue:
-    --     pop highest priority node
-    --     expand:
-    --       check if node is a goal:
-    --         if so, we're done! quit with this node's path as the result
-    --       compute node children and their cost heuristic h(n)'s
-    --       insert node children (prioritized by f(n) = g(n) + h(n), lowest f is highest priority)
-    --   otherwise, search failed! there's no solution.
+    ((lastTransform, circuit), (genNodes, expNodes)) = expandNext (HashPSQ.singleton rootKey rootF (inputMat, [])) Set.empty initialMemo (0, 0)
 
-    -- The "key" also contains the full set of generated parities for the circuit now
-    expandNext :: (HasFeatureFlags) => AStarQ -> CloseQ -> (Int, Int) -> ((LinearTrans, [Primitive]), (Int, Int))
-    expandNext psq closed (genNodes, expNodes) =
+    -- Threading a Map to memoize `linearSynth` calls speeds up heuristic calculation
+    expandNext :: (HasFeatureFlags) => AStarQ -> CloseQ -> Map LinearTrans Int -> (Int, Int) -> ((LinearTrans, [Primitive]), (Int, Int))
+    expandNext psq closed memo (genNodes, expNodes) =
       let newExpNodes = expNodes + 1 in
       traceASearch ("Expanding " ++ formatNode (HashPSQ.findMin psq)) $
         generateChildren (HashPSQ.findMin psq) newExpNodes
       where
-        generateChildren Nothing _ = undefined -- shouldn't happen
+        generateChildren Nothing _ = undefined 
         generateChildren (Just (key@(mustRemain, basis, generated), fCost, (curMat, circRev))) newExpNodes
-          | null mustRemain = ((curTransform, reverse circRev), (genNodes, newExpNodes)) -- no musts left: goal achieved!
+          | null mustRemain = ((curTransform, reverse circRev), (genNodes, newExpNodes)) 
           | otherwise       =
-            let newClosed = Set.insert key closed
-                newGenNodes = genNodes + length childNodes in 
-             expandNext (foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes) newClosed (newGenNodes, newExpNodes)
-          -- Try adding every different CNOT to the PSQ
+            let psqDel = HashPSQ.deleteMin psq
+                indices = [(i,j) | i <- [0..n-1], j <- [0..n-1], i /= j]
+                curRowsArr = vals curMat
+                
+                (childNodes, newMemo) = foldl' processChild ([], memo) indices
+                
+                processChild (acc, m) (i, j) = 
+                  -- 1. Compute parity and short-circuit invalid states before mutating any matrices
+                  let curParity_i = curRowsArr !! i
+                      curParity_j = curRowsArr !! j
+                      newParity = curParity_i + curParity_j
+                  in if newParity `Set.member` generated then (acc, m)
+                     else 
+                       let childMustRemain = Set.delete newParity mustRemain
+                           childBasis = Set.insert newParity (Set.delete curParity_j basis)
+                           childGenerated = Set.insert newParity generated
+                           childKey = (childMustRemain, childBasis, childGenerated)
+                       in if childKey `Set.member` closed then (acc, m)
+                          else 
+                            let childMat = addRow i j curMat
+                                childTrans = Map.fromList (zip qids (vals childMat))
+                                -- 2. Memoized lookup for the expensive linearSynth cost
+                                (hLinCost, m') = case Map.lookup childTrans m of
+                                                   Just c  -> (c, m)
+                                                   Nothing -> let c = length (linearSynth childTrans relatedOutput)
+                                                              in (c, Map.insert childTrans c m)
+                                hPhase = heuristic childMat childKey
+                                childCirc = CNOT (qids !! i) (qids !! j) : circRev
+                                g = length childCirc
+                                childF = g + max hPhase hLinCost
+                                childVal = (childMat, childCirc)
+                            in ((childKey, childF, childVal) : acc, m')
+
+                newClosed = Set.insert key closed
+                newGenNodes = genNodes + length childNodes 
+                newPsq = foldl' (\psq' (k, p, v) -> HashPSQ.insert k p v psq') psqDel childNodes
+             in expandNext newPsq newClosed newMemo (newGenNodes, newExpNodes)
           where
             curTransform = Map.fromList (zip qids (vals curMat))
-            psqDel = HashPSQ.deleteMin psq
-            childNodes = catMaybes [makeChild i j | i <- [0..n-1], j <- [0..n-1], i /= j]
-            makeChild i j
-              | newParity `Set.member` generated = Nothing
-              | childKey `Set.member` closed     = Nothing
-              | otherwise                        = assert (childBasis == Set.fromList (vals childMat)) $
-                                                     Just (childKey, childF, childVal)
-              where
-                childKey = (childMustRemain, childBasis, childGenerated)
-                childCirc = newGate : circRev
-                childF = nodePriority childKey childMat childCirc
-                childVal = (childMat, childCirc)
 
-                childMustRemain = Set.delete newParity mustRemain
-                childBasis = Set.insert newParity (Set.delete curParity basis)
-                childGenerated = Set.insert newParity generated
-
-                curParity = row curMat j
-                newParity = row childMat j
-                newGate = CNOT (qids !! i) (qids !! j)
-
-                childMat = addRow i j curMat
         formatNode Nothing = "<SKIP!>"
         formatNode (Just ((mustRemain, basis, generated), fCost, (curMat, circRev))) =
           "Basis=" ++ show (Set.toList basis) ++ ", f=" ++ show fCost ++ ", must=" ++ show (Set.toList mustRemain)
